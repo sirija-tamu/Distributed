@@ -150,27 +150,24 @@ IReply Client::processCommand(std::string& input)
   // ------------------------------------------------------------
 
     IReply ire;
-
-    // Split the input string to parse the command and arguments
-    std::istringstream iss(input);
-    std::string command, username;
-    iss >> command;
-
-    switch (command) { 
-        case "FOLLOW": 
-            iss >> username;
-            return Client::Follow(username)
-        case "UNFOLLOW": 
-            iss >> username;
-            return Client::UnFollow(username)
-        case "LIST":
-            return Client::List()
-        case "TIMELINE":
-            return Client::processTimeline();
-        default:
-            return ire;
+    size_t space_pos = input.find(' ');
+    std::string command = (space_pos == std::string::npos) ? input : input.substr(0, space_pos);
+    if (command == "FOLLOW") {
+        std::string username = (space_pos == std::string::npos) ? "" : input.substr(space_pos + 1);
+        return Client::Follow(username);
+    } else if (command == "UNFOLLOW") {
+        std::string username = (space_pos == std::string::npos) ? "" : input.substr(space_pos + 1);
+        return ire = Client::UnFollow(username);
+    } else if (command == "LIST") {
+        return  Client::List();
+    } else if (command == "TIMELINE") {
+        Client::processTimeline();
+    } else {
+        ire.comm_status = IStatus::FAILURE_INVALID;
     }
+    return ire;
 }
+
 
 
 void Client::processTimeline()
@@ -196,8 +193,8 @@ IReply Client::List() {
     // Check if the gRPC call was successful
     if (status.ok()) {
         // Process the response
-        ire.all_users()->CopyFrom(list_reply.all_users());
-        ire.followers()->CopyFrom(list_reply.followers());
+        ire.all_users->CopyFrom(list_reply.all_users());
+        ire.followers->CopyFrom(list_reply.followers());
     } 
 
     ire.comm_status = IStatus::SUCCESS;
@@ -216,7 +213,7 @@ IReply Client::Follow(const std::string& username2) {
     request.add_arguments(username2); // The user to be followed
 
     // Create a FollowReply response object
-    FollowReply follow_reply;
+    Reply follow_reply;
     // Create a ClientContext for managing the gRPC call
     grpc::ClientContext context;
 
