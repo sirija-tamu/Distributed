@@ -343,7 +343,7 @@ void Client::Timeline(const std::string& username) {
         while (true) {
             // Get a new post message from the user input
             Message post;
-	    post.set_username(username)
+	    post.set_username(username);
 	    post.set_msg(getPostMessage());
 
             // Write the post message to the stream (server)
@@ -358,7 +358,7 @@ void Client::Timeline(const std::string& username) {
 	    google::protobuf::Timestamp* timestamp = new google::protobuf::Timestamp();
 	    timestamp->set_seconds(time(NULL));
 	    timestamp->set_nanos(0);
-            displayPostMessage(m.username(), m.msg(), current_timestamp());
+            displayPostMessage(m.username(), m.msg(), timestamp);
         }
     });
 
