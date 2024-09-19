@@ -80,12 +80,26 @@ int Client::connectTo()
   // to call any service methods in those functions.
   // Please refer to gRpc tutorial how to create a stub.
   // ------------------------------------------------------------
-    
-///////////////////////////////////////////////////////////
-// YOUR CODE HERE
-//////////////////////////////////////////////////////////
 
-    return 1;
+  // Server address and port
+  std::string server_address = hostname + ":" + port; 
+
+  // Create a channel to the gRPC server
+  auto channel = grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials());
+
+  // Create a stub for the SNSService
+  stub_ = csce662::SNSService::NewStub(channel);
+
+  IReply ire = Client::Login();
+
+  // Check if the stub is created successfully
+  if (ire.comm_status != IStatus::SUCCESS) {
+      std::cout << "Connected to gRPC server at " << server_address << std::endl;
+      return 1;  // Success
+  } else {
+      std::cerr << "Failed to create gRPC stub." << std::endl;
+      return -1; // Failure
+  }
 }
 
 IReply Client::processCommand(std::string& input)
@@ -136,12 +150,26 @@ IReply Client::processCommand(std::string& input)
   // ------------------------------------------------------------
 
     IReply ire;
-    
-    /*********
-    YOUR CODE HERE
-    **********/
 
-    return ire;
+    // Split the input string to parse the command and arguments
+    std::istringstream iss(input);
+    std::string command, username;
+    iss >> command;
+
+    switch (command) { 
+        case "FOLLOW": 
+            iss >> username;
+            return Client::Follow(username)
+        case "UNFOLLOW": 
+            iss >> username;
+            return Client::UnFollow(username)
+        case "LIST":
+            return Client::List()
+        case "TIMELINE":
+            return Client::processTimeline();
+        default:
+            return ire;
+    }
 }
 
 
@@ -154,11 +182,26 @@ void Client::processTimeline()
 IReply Client::List() {
 
     IReply ire;
+    // Prepare the request object
+    Request request;
+    // Setting the username
+    request.set_username(username); 
+    // Create a ListReply response object
+    ListReply list_reply;
+    // Create a ClientContext for managing the gRPC call
+    grpc::ClientContext context;
+    // Make the gRPC call
+    grpc::Status status = stub_->List(&context, request, &list_reply);
 
-    /*********
-    YOUR CODE HERE
-    **********/
+    // Check if the gRPC call was successful
+    if (status.ok()) {
+        // Process the response
+        ire.all_users()->CopyFrom(list_reply.all_users());
+        ire.followers()->CopyFrom(list_reply.followers());
+    } 
 
+    ire.comm_status = IStatus::SUCCESS;
+    ire.grpc_status = status;
     return ire;
 }
 
@@ -166,10 +209,36 @@ IReply Client::List() {
 IReply Client::Follow(const std::string& username2) {
 
     IReply ire; 
-      
-    /***
-    YOUR CODE HERE
-    ***/
+
+    // Prepare the request object
+    Request request;
+    request.set_username(username); // The user initiating the follow
+    request.add_arguments(username2); // The user to be followed
+
+    // Create a FollowReply response object
+    FollowReply follow_reply;
+    // Create a ClientContext for managing the gRPC call
+    grpc::ClientContext context;
+
+    // Make the gRPC call
+    grpc::Status status = stub_->Follow(&context, request, &follow_reply);
+
+    if (status.ok()) {
+          const std::string& msg = follow_reply.msg();
+
+          if (msg.find("FAILURE_INVALID_USERNAME") != std::string::npos) {
+              ire.comm_status = IStatus::FAILURE_INVALID_USERNAME;
+          } else if (msg.find("FAILURE_ALREADY_EXISTS") != std::string::npos) {
+              ire.comm_status = IStatus::FAILURE_ALREADY_EXISTS;
+          } else if (msg.find("SUCCESS") != std::string::npos) {
+              ire.comm_status = IStatus::SUCCESS;
+          } else {
+              ire.comm_status = IStatus::FAILURE_UNKNOWN;
+          }
+    } else {
+          ire.comm_status = IStatus::FAILURE_UNKNOWN;
+    }
+    
 
     return ire;
 }
@@ -182,7 +251,7 @@ IReply Client::UnFollow(const std::string& username2) {
     /***
     YOUR CODE HERE
     ***/
-
+    std::cout << "Unfollow not implemented yet ";
     return ire;
 }
 
@@ -194,6 +263,7 @@ IReply Client::Login() {
     /***
      YOUR CODE HERE
     ***/
+   std::cout << "Login not implemented yet ";
 
     return ire;
 }
@@ -221,6 +291,9 @@ void Client::Timeline(const std::string& username) {
     /***
     YOUR CODE HERE
     ***/
+   std::cout << "Timeline not implemented yet ";
+
+
 
 }
 
