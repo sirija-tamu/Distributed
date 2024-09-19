@@ -173,8 +173,8 @@ class SNSServiceImpl final : public SNSService::Service {
         return Status::OK;
     }
 
-    std::vector<Client*> following = curr_user->client_following;
-    std::vector<Client*> followers = to_unfollow->client_followers;
+    std::vector<Client*>& following = curr_user->client_following;
+    std::vector<Client*>& followers = to_unfollow->client_followers;
 
     for (int i = 0; i < following.size(); ++i) {
         if (following[i]->username == to_unfollow->username) {
