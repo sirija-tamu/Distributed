@@ -193,8 +193,8 @@ IReply Client::List() {
     // Check if the gRPC call was successful
     if (status.ok()) {
         // Process the response
-        ire.all_users->CopyFrom(list_reply.all_users());
-        ire.followers->CopyFrom(list_reply.followers());
+        ire.all_users = std::vector<std::string>(list_reply.all_users().begin(), list_reply.all_users().end());
+        ire.followers = std::vector<std::string>(list_reply.followers().begin(), list_reply.followers().end());
     } 
 
     ire.comm_status = IStatus::SUCCESS;
