@@ -215,7 +215,7 @@ class SNSServiceImpl final : public SNSService::Service {
     } else {
         curr_user = new Client();
         curr_user->username = request->username();
-	// Create Time Line
+	      // Create Time Line
         client_db.push_back(curr_user);
     }
     // Log the user in by setting the 'connected' status to true

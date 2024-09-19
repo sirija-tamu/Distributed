@@ -235,7 +235,9 @@ IReply Client::Follow(const std::string& username2) {
     } else {
           ire.comm_status = IStatus::FAILURE_UNKNOWN;
     }
+
     ire.grpc_status = status;
+
     return ire;
 }
 
@@ -244,10 +246,37 @@ IReply Client::UnFollow(const std::string& username2) {
 
     IReply ire;
 
-    /***
-    YOUR CODE HERE
-    ***/
-    std::cout << "Unfollow not implemented yet ";
+    // Prepare the request object
+    Request request;
+    request.set_username(username); // The user initiating the follow
+    request.add_arguments(username2); // The user to be followed
+
+    // Create a UnfollowReply response object
+    Reply unfollow_reply;
+    // Create a ClientContext for managing the gRPC call
+    grpc::ClientContext context;
+
+    // Make the gRPC call
+    grpc::Status status = stub_->UnFollow(&context, request, &unfollow_reply);
+
+    if (status.ok()) {
+          const std::string& msg = unfollow_reply.msg();
+
+          if (msg.find("FAILURE_INVALID_USERNAME") != std::string::npos) {
+              ire.comm_status = IStatus::FAILURE_INVALID_USERNAME;
+          } else if (msg.find("FAILURE_INVALID") != std::string::npos) {
+              ire.comm_status = IStatus::FAILURE_INVALID;
+          } else if (msg.find("SUCCESS") != std::string::npos) {
+              ire.comm_status = IStatus::SUCCESS;
+          } else {
+              ire.comm_status = IStatus::FAILURE_UNKNOWN;
+          }
+    } else {
+          ire.comm_status = IStatus::FAILURE_UNKNOWN;
+    }
+    
+    ire.grpc_status = status;
+    
     return ire;
 }
 
