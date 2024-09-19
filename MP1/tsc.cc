@@ -93,7 +93,7 @@ int Client::connectTo()
   IReply ire = Client::Login();
 
   // Check if the stub is created successfully
-  if (ire.comm_status != IStatus::SUCCESS) {
+  if (ire.comm_status == IStatus::SUCCESS) {
       std::cout << "Connected to gRPC server at " << server_address << std::endl;
       return 1;  // Success
   } else {
