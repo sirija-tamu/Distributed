@@ -332,9 +332,10 @@ void Client::Timeline(const std::string& username) {
     // and you can terminate the client program by pressing
     // CTRL-C (SIGINT)
     // ------------------------------------------------------------
-  
+
+    ClientContext context;
     // Start a gRPC client stream to communicate with the server for the Timeline
-    gRPC_RW_Stream<Message, Message> stream(stub_->Timeline(&context));
+    std::shared_ptr<ClientReaderWriter<Message, Message>> stream(stub_->Timeline(&context));
 
     // Create threads for reading and writing messages to/from the stream
     std::thread writer_thread([this, &stream]() {
