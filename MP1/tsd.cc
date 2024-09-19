@@ -213,10 +213,10 @@ class SNSServiceImpl final : public SNSService::Service {
         }
 
     } else {
-        // auto curr_user = std::make_unique<Client>(request->username());
-        // Create Timeline
-        //push to db
-        // client_db.push_back(std::move(curr_user));
+        curr_user = new Client();
+        curr_user->username = request->username();
+	// Create Time Line
+        client_db.push_back(curr_user);
     }
     // Log the user in by setting the 'connected' status to true
     curr_user->connected = true;
