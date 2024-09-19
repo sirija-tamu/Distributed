@@ -355,10 +355,9 @@ void Client::Timeline(const std::string& username) {
         Message m;
         while (stream->Read(&m)) {
             // Display the post message received from the server with a timestamp
-            google::protobuf::Timestamp* timestamp = new google::protobuf::Timestamp();
-            timestamp->set_seconds(time(NULL));
-            timestamp->set_nanos(0);
-            displayPostMessage(m.username(), m.msg(), timestamp.seconds());
+            google::protobuf::Timestamp timestamp = m.timestamp();
+            std::time_t time_value = static_cast<std::time_t>(timestamp.seconds());
+            displayPostMessage(m.username(), m.msg(), time_value);
         }
     });
 
