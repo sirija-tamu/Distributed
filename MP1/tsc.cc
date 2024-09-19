@@ -235,8 +235,7 @@ IReply Client::Follow(const std::string& username2) {
     } else {
           ire.comm_status = IStatus::FAILURE_UNKNOWN;
     }
-    
-
+    ire.grpc_status = status;
     return ire;
 }
 
@@ -257,11 +256,31 @@ IReply Client::Login() {
 
     IReply ire;
   
-    /***
-     YOUR CODE HERE
-    ***/
-   std::cout << "Login not implemented yet ";
+        // Prepare the request object
+    Request request;
+    request.set_username(username); // The user initiating the follow
 
+    // Create a LoginReply response object
+    Reply login_reply;
+    // Create a ClientContext for managing the gRPC call
+    grpc::ClientContext context;
+
+    // Make the gRPC call
+    grpc::Status status = stub_->Login(&context, request, &login_reply);
+
+    if (status.ok()) {
+          const std::string& msg = login_reply.msg();
+          if (msg.find("FAILURE_ALREADY_EXISTS") != std::string::npos) {
+              ire.comm_status = IStatus::FAILURE_ALREADY_EXISTS;
+          } else if (msg.find("SUCCESS") != std::string::npos) {
+              ire.comm_status = IStatus::SUCCESS;
+          } else {
+              ire.comm_status = IStatus::FAILURE_UNKNOWN;
+          }
+    } else {
+          ire.comm_status = IStatus::FAILURE_UNKNOWN;
+    }
+    ire.grpc_status = status;
     return ire;
 }
 
