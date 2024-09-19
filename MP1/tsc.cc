@@ -314,16 +314,6 @@ IReply Client::Login() {
     return ire;
 }
 
-std::string current_timestamp() {
-    auto now = std::chrono::system_clock::now();
-    std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-    std::tm* local_tm = std::localtime(&now_time);
-
-    std::ostringstream oss;
-    oss << std::put_time(local_tm, "%Y-%m-%d %H:%M:%S");
-    return oss.str();
-}
-
 // Timeline Command
 void Client::Timeline(const std::string& username) {
 
@@ -349,7 +339,7 @@ void Client::Timeline(const std::string& username) {
     std::shared_ptr<ClientReaderWriter<Message, Message>> stream(stub_->Timeline(&context));
 
     // Create threads for reading and writing messages to/from the stream
-    std::thread writer_thread([this, &stream]() {
+    std::thread writer_thread([this, &stream, &username]() {
         while (true) {
             // Get a new post message from the user input
             Message post;
@@ -365,6 +355,9 @@ void Client::Timeline(const std::string& username) {
         Message m;
         while (stream->Read(&m)) {
             // Display the post message received from the server with a timestamp
+	    google::protobuf::Timestamp* timestamp = new google::protobuf::Timestamp();
+	    timestamp->set_seconds(time(NULL));
+	    timestamp->set_nanos(0);
             displayPostMessage(m.username(), m.msg(), current_timestamp());
         }
     });
