@@ -85,36 +85,134 @@ std::vector<Client*> client_db;
 class SNSServiceImpl final : public SNSService::Service {
   
   Status List(ServerContext* context, const Request* request, ListReply* list_reply) override {
-    /*********
-    YOUR CODE HERE
-    **********/
+    // Find current user (for fetching followers)
+    Client* curr_user = nullptr;
+    // Add all users in client_db to list_reply's all_users
+    for (const auto* client : client_db) {
+        list_reply->all_users.push_back(client->username);
+        if (client->username == request->username) {
+            curr_user = client;
+        }
+    }
+
+    // Add followers of current user to list_reply's followers
+    for (const auto* follower : curr_user->client_followers) {
+        list_reply->followers.push_back(follower->username);
+    }
+
     return Status::OK;
   }
 
-  Status Follow(ServerContext* context, const Request* request, Reply* reply) override {
 
-    /*********
-    YOUR CODE HERE
-    **********/
+  // Get client by username
+  Client* getClient(const std::string& username) {
+      for (auto* client : client_db) {
+          if (client->username == username) {
+              return client;
+          }
+      }
+      return nullptr;
+  }
+
+  Status Follow(ServerContext* context, const Request* request, Reply* reply) override {
+    // Get the current user and the username of the client the current user wants to follow,
+    Client* curr_user = getClient(request->username);
+    Client* wants_to_follow = getClient(request->args[0]);
+
+    // Check if the curr_user and the user the client wants to follow exists
+    if (curr_user == nullptr) {
+      reply->set_msg("FAILURE_INVALID_USERNAME: Current user doesn't exist in clientDB.");
+      return Status::OK;
+    }
+
+    if (wants_to_follow == nullptr) {
+      reply->set_msg("FAILURE_INVALID_USERNAME: The user name you want to follow doesn't exist in clientDB.");
+      return Status::OK;
+    }
+    
+    if (wants_to_follow->username == curr_user->username) {
+      reply->set_msg("FAILURE_INVALID: You can't follow yourself");
+      return Status::OK;
+    }
+
+    // Check if client already follows the prospective follower
+    for (const auto* following : curr_user->client_following) {
+      if (following->username == wants_to_follow->username) {
+          reply->set_msg("FAILURE_ALREADY_EXISTS: You are already following the user");
+          return Status::OK;
+      }
+    }
+
+    // Update the following and followers lists if its a new following.
+    curr_user->client_following.push_back(wants_to_follow);
+    wants_to_follow->client_followers.push_back(curr_user);
+
+    reply->set_msg("SUCCESS: Successfully followed the user.");
     return Status::OK; 
   }
 
   Status UnFollow(ServerContext* context, const Request* request, Reply* reply) override {
 
-    /*********
-    YOUR CODE HERE
-    **********/
+    // Get the current user and the username of the client the current user wants to unfollow
+    Client* curr_user = getClient(request->username);
+    Client* to_unfollow = getClient(request->args[0]);
 
+    // Check if the current user and the user to be unfollowed exist
+    if (curr_user == nullptr) {
+        reply->set_msg("FAILURE_INVALID_USERNAME: Current user doesn't exist in clientDB.");
+        return Status::OK;
+    }
+
+    if (to_unfollow == nullptr) {
+        reply->set_msg("FAILURE_INVALID_USERNAME: The username you want to unfollow doesn't exist in clientDB.");
+        return Status::OK;
+    }
+
+    if (to_unfollow->username == curr_user->username) {
+        reply->set_msg("FAILURE_INVALID: You can't unfollow yourself.");
+        return Status::OK;
+    }
+
+    // Check if the current user is actually following the user to unfollow
+    for (const auto* following : curr_user->client_following) {
+      if (following->username == to_unfollow->username) {
+          curr_user->client_following.erase(to_unfollow->username);
+          to_unfollow->client_followers.erase(curr_user->username);
+          reply->set_msg("SUCCESS: Successfully unfollowed the user.");
+          return Status::OK;
+      }
+    }
+    reply->set_msg("FAILURE_NOT_A_FOLLOWER: You are not following this user.");
     return Status::OK;
   }
 
   // RPC Login
   Status Login(ServerContext* context, const Request* request, Reply* reply) override {
 
-    /*********
-    YOUR CODE HERE
-    **********/
-    
+    // Find the client in the client_db using the helper function
+    Client* curr_user = getClient(request->username);
+
+    // Check if the client exists in client_db
+    if (curr_user != nullptr) {
+        // Check if the client is already logged in
+        if (curr_user->connected) {
+            reply->set_msg("FAILURE_ALREADY_EXISTS: The user is already logged in.");
+            return Status::OK;
+        }
+
+    } else {
+        curr_user = new Client;
+        curr_user->username = request->username;
+        curr_user->client_followers = new std::vector<Client *>();
+        curr_user->client_following = new std::vector<Client *>();
+        // Create Timeline
+        client_db.push_back(curr_user);
+    }
+    // Log the user in by setting the 'connected' status to true
+    curr_user->connected = true;
+
+    // Set a success message
+    reply->set_msg("SUCCESS: Logged in successfully.");
     return Status::OK;
   }
 
