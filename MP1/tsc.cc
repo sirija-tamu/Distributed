@@ -313,6 +313,16 @@ IReply Client::Login() {
     return ire;
 }
 
+std::string current_timestamp() {
+    auto now = std::chrono::system_clock::now();
+    std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+    std::tm* local_tm = std::localtime(&now_time);
+
+    std::ostringstream oss;
+    oss << std::put_time(local_tm, "%Y-%m-%d %H:%M:%S");
+    return oss.str();
+}
+
 // Timeline Command
 void Client::Timeline(const std::string& username) {
 
@@ -341,7 +351,9 @@ void Client::Timeline(const std::string& username) {
     std::thread writer_thread([this, &stream]() {
         while (true) {
             // Get a new post message from the user input
-            Message post = getPostMessage();
+            Message post;
+	    post.set_username(username)
+	    post.set_msg(getPostMessage());
 
             // Write the post message to the stream (server)
             stream->Write(post);
@@ -352,7 +364,7 @@ void Client::Timeline(const std::string& username) {
         Message m;
         while (stream->Read(&m)) {
             // Display the post message received from the server with a timestamp
-            displayPostMessage(m.username(), m.text(), current_timestamp());
+            displayPostMessage(m.username(), m.msg(), current_timestamp());
         }
     });
 
