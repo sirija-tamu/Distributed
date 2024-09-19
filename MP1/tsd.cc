@@ -42,6 +42,7 @@
 #include <string>
 #include <stdlib.h>
 #include <unistd.h>
+#include <iomanip>
 #include <google/protobuf/util/time_util.h>
 #include <grpc++/grpc++.h>
 #include<glog/logging.h>
@@ -220,13 +221,13 @@ class SNSServiceImpl final : public SNSService::Service {
         curr_user->username = request->username();
         curr_user->connected = true;
         // Create the user’s timeline file if it doesn't exist or is empty
-        std::ofstream userFile(u + ".txt", std::ios::app);
+        std::ofstream userFile(request->username() + ".txt", std::ios::app);
         if (userFile.is_open()) {
             userFile << "Now you are in your Timeline";
             userFile.close();
         }
         // Create the user’s follower messages file
-        std::ofstream followersFile(u + "_following.txt", std::ios::app);
+        std::ofstream followersFile(request->username() + "_following.txt", std::ios::app);
         client_db.push_back(curr_user);
     }
 
@@ -235,8 +236,19 @@ class SNSServiceImpl final : public SNSService::Service {
     return Status::OK;
   }
 
-  std::string format_file_output(const std::string& timestamp, const std::string& username, const std::string& message) {
-      return  username + "(" + timestamp + ") " + ">>" + message + "\n";
+  std::string format_file_output(const std::string& username, const std::string& message) {
+     // Get the current time
+     auto now = std::chrono::system_clock::now();
+     std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+     std::tm* local_tm = std::localtime(&now_time);
+	
+     // Format the timestamp
+     std::ostringstream oss;
+     oss << std::put_time(local_tm, "%Y-%m-%d %H:%M:%S");
+     std::string timestamp = oss.str();
+	
+     // Format the output string
+     return username + " (" + timestamp + ") >> " + message + "\n";
   }
 
   void append_to_file(const std::string& filename, const std::string& formatted_message) {
@@ -245,11 +257,6 @@ class SNSServiceImpl final : public SNSService::Service {
           outFile << formatted_message;
           outFile.close();
       }
-  }
-
-  bool first_timeline_stream() {
-      // Implement logic to check if this is the first timeline interaction
-      return false; // Placeholder logic, change based on your state
   }
 
   std::vector<std::string> read_latest_20_messages(const std::string& filename) {
@@ -279,7 +286,7 @@ class SNSServiceImpl final : public SNSService::Service {
         Client* c = getClient(u);      
         
         // Format the message for file output
-        std::string ffo = format_file_output(current_timestamp(), m.username(), m.text());
+        std::string ffo = format_file_output(m.username(), m.msg());
 
         // Check if this is the first time the client is streaming the timeline
         if (!c->hasStreamed) {
@@ -290,13 +297,13 @@ class SNSServiceImpl final : public SNSService::Service {
             std::vector<std::string> lat20 = read_latest_20_messages(u + "_following.txt");
             for (const auto& msg : lat20) {
                 Message latest_msg;
-                latest_msg.set_text(msg);
+                latest_msg.set_msg(msg);
                 stream->Write(latest_msg);  // Send the latest messages to the client
             }
         }
 
         // For each follower of the client, stream the new message
-        for (const auto& follower : c->followers) {
+        for (const auto& follower : c->client_followers) {
             follower->stream->Write(m);  // Send new message to follower
             append_to_file(follower->username + "_following.txt", ffo);  // Append to follower's file
         }
