@@ -333,13 +333,31 @@ void Client::Timeline(const std::string& username) {
     // CTRL-C (SIGINT)
     // ------------------------------------------------------------
   
-    /***
-    YOUR CODE HERE
-    ***/
-   std::cout << "Timeline not implemented yet ";
+    // Start a gRPC client stream to communicate with the server for the Timeline
+    gRPC_RW_Stream<Message, Message> stream(stub_->Timeline(&context));
 
+    // Create threads for reading and writing messages to/from the stream
+    std::thread writer_thread([this, &stream]() {
+        while (true) {
+            // Get a new post message from the user input
+            Message post = getPostMessage();
 
+            // Write the post message to the stream (server)
+            stream->Write(post);
+        }
+    });
 
+    std::thread reader_thread([this, &stream]() {
+        Message m;
+        while (stream->Read(&m)) {
+            // Display the post message received from the server with a timestamp
+            displayPostMessage(m.username(), m.text(), current_timestamp());
+        }
+    });
+
+    // Wait for both the reader and writer threads to finish
+    writer_thread.join();
+    reader_thread.join();
 }
 
 

@@ -73,6 +73,7 @@ struct Client {
   std::vector<Client*> client_followers;
   std::vector<Client*> client_following;
   ServerReaderWriter<Message, Message>* stream = 0;
+  bool hasStreamed = false;
   bool operator==(const Client& c1) const{
     return (username == c1.username);
   }
@@ -217,8 +218,15 @@ class SNSServiceImpl final : public SNSService::Service {
     } else {
         curr_user = new Client();
         curr_user->username = request->username();
-	// Create Time Line
         curr_user->connected = true;
+        // Create the user’s timeline file if it doesn't exist or is empty
+        std::ofstream userFile(u + ".txt", std::ios::app);
+        if (userFile.is_open()) {
+            userFile << "Now you are in your Timeline";
+            userFile.close();
+        }
+        // Create the user’s follower messages file
+        std::ofstream followersFile(u + "_following.txt", std::ios::app);
         client_db.push_back(curr_user);
     }
 
@@ -227,13 +235,72 @@ class SNSServiceImpl final : public SNSService::Service {
     return Status::OK;
   }
 
+  std::string format_file_output(const std::string& timestamp, const std::string& username, const std::string& message) {
+      return  username + "(" + timestamp + ") " + ">>" + message + "\n";
+  }
+
+  void append_to_file(const std::string& filename, const std::string& formatted_message) {
+      std::ofstream outFile(filename, std::ios::app);
+      if (outFile.is_open()) {
+          outFile << formatted_message;
+          outFile.close();
+      }
+  }
+
+  bool first_timeline_stream() {
+      // Implement logic to check if this is the first timeline interaction
+      return false; // Placeholder logic, change based on your state
+  }
+
+  std::vector<std::string> read_latest_20_messages(const std::string& filename) {
+      std::ifstream inFile(filename);
+      std::vector<std::string> messages;
+      std::string line;
+      
+      while (std::getline(inFile, line)) {
+          messages.push_back(line);
+      }
+      
+      // Only return the last 20 messages
+      if (messages.size() > 20) {
+          messages.erase(messages.begin(), messages.end() - 20);
+      }
+      
+      return messages;
+  }
+
+
   Status Timeline(ServerContext* context, 
 		ServerReaderWriter<Message, Message>* stream) override {
+      Message m;
+      while (stream->Read(&m)) {
+        // Extract username and client object
+        std::string u = m.username();  
+        Client* c = getClient(u);      
+        
+        // Format the message for file output
+        std::string ffo = format_file_output(current_timestamp(), m.username(), m.text());
 
-    /*********
-    YOUR CODE HERE
-    **********/
-    
+        // Check if this is the first time the client is streaming the timeline
+        if (!c->hasStreamed) {
+            // First time: initialize user files and set the hasStreamed flag to true
+            c->hasStreamed = true;
+        } else {
+            // Read the latest 20 messages from the user's followers' file
+            std::vector<std::string> lat20 = read_latest_20_messages(u + "_following.txt");
+            for (const auto& msg : lat20) {
+                Message latest_msg;
+                latest_msg.set_text(msg);
+                stream->Write(latest_msg);  // Send the latest messages to the client
+            }
+        }
+
+        // For each follower of the client, stream the new message
+        for (const auto& follower : c->followers) {
+            follower->stream->Write(m);  // Send new message to follower
+            append_to_file(follower->username + "_following.txt", ffo);  // Append to follower's file
+        }
+    }
     return Status::OK;
   }
 
