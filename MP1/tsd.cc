@@ -88,16 +88,16 @@ class SNSServiceImpl final : public SNSService::Service {
     // Find current user (for fetching followers)
     Client* curr_user = nullptr;
     // Add all users in client_db to list_reply's all_users
-    for (const auto* client : client_db) {
-        list_reply->all_users.push_back(client->username);
-        if (client->username == request->username) {
+    for (Client* client : client_db) {
+        list_reply->add_all_users(client->username);
+        if (client->username == request->username()) {
             curr_user = client;
         }
     }
 
     // Add followers of current user to list_reply's followers
-    for (const auto* follower : curr_user->client_followers) {
-        list_reply->followers.push_back(follower->username);
+    for (Client* follower : curr_user->client_followers) {
+        list_reply->add_followers(follower->username);
     }
 
     return Status::OK;
@@ -106,7 +106,7 @@ class SNSServiceImpl final : public SNSService::Service {
 
   // Get client by username
   Client* getClient(const std::string& username) {
-      for (auto* client : client_db) {
+      for (Client* client : client_db) {
           if (client->username == username) {
               return client;
           }
@@ -116,8 +116,8 @@ class SNSServiceImpl final : public SNSService::Service {
 
   Status Follow(ServerContext* context, const Request* request, Reply* reply) override {
     // Get the current user and the username of the client the current user wants to follow,
-    Client* curr_user = getClient(request->username);
-    Client* wants_to_follow = getClient(request->args[0]);
+    Client* curr_user = getClient(request->username());
+    Client* wants_to_follow = getClient(request->arguments(0));
 
     // Check if the curr_user and the user the client wants to follow exists
     if (curr_user == nullptr) {
@@ -136,7 +136,7 @@ class SNSServiceImpl final : public SNSService::Service {
     }
 
     // Check if client already follows the prospective follower
-    for (const auto* following : curr_user->client_following) {
+    for (Client* following : curr_user->client_following) {
       if (following->username == wants_to_follow->username) {
           reply->set_msg("FAILURE_ALREADY_EXISTS: You are already following the user");
           return Status::OK;
@@ -154,8 +154,8 @@ class SNSServiceImpl final : public SNSService::Service {
   Status UnFollow(ServerContext* context, const Request* request, Reply* reply) override {
 
     // Get the current user and the username of the client the current user wants to unfollow
-    Client* curr_user = getClient(request->username);
-    Client* to_unfollow = getClient(request->args[0]);
+    Client* curr_user = getClient(request->username());
+    Client* to_unfollow = getClient(request->arguments(0));
 
     // Check if the current user and the user to be unfollowed exist
     if (curr_user == nullptr) {
@@ -173,15 +173,27 @@ class SNSServiceImpl final : public SNSService::Service {
         return Status::OK;
     }
 
-    // Check if the current user is actually following the user to unfollow
-    for (const auto* following : curr_user->client_following) {
-      if (following->username == to_unfollow->username) {
-          curr_user->client_following.erase(to_unfollow->username);
-          to_unfollow->client_followers.erase(curr_user->username);
-          reply->set_msg("SUCCESS: Successfully unfollowed the user.");
-          return Status::OK;
-      }
+    std::vector<Client*> following = curr_user->client_following;
+    std::vector<Client*> followers = to_unfollow->client_followers;
+
+    for (int i = 0; i < following.size(); ++i) {
+        if (following[i]->username == to_unfollow->username) {
+            // Remove the Client* from curr_user's following
+            following.erase(following.begin() + i);
+
+            // Now remove curr_user from to_unfollow's followers
+            for (int j = 0; j < followers.size(); ++j) {
+                if (followers[j]->username == curr_user->username) {
+                    followers.erase(followers.begin() + j);
+                    break;
+                }
+            }
+            reply->set_msg("SUCCESS: Successfully unfollowed the user.");
+            return Status::OK;
+        }
     }
+    
+    // If the current user is not following the user to unfollow
     reply->set_msg("FAILURE_NOT_A_FOLLOWER: You are not following this user.");
     return Status::OK;
   }
@@ -190,7 +202,7 @@ class SNSServiceImpl final : public SNSService::Service {
   Status Login(ServerContext* context, const Request* request, Reply* reply) override {
 
     // Find the client in the client_db using the helper function
-    Client* curr_user = getClient(request->username);
+    Client* curr_user = getClient(request->username());
 
     // Check if the client exists in client_db
     if (curr_user != nullptr) {
@@ -201,12 +213,10 @@ class SNSServiceImpl final : public SNSService::Service {
         }
 
     } else {
-        curr_user = new Client;
-        curr_user->username = request->username;
-        curr_user->client_followers = new std::vector<Client *>();
-        curr_user->client_following = new std::vector<Client *>();
+        // auto curr_user = std::make_unique<Client>(request->username());
         // Create Timeline
-        client_db.push_back(curr_user);
+        //push to db
+        // client_db.push_back(std::move(curr_user));
     }
     // Log the user in by setting the 'connected' status to true
     curr_user->connected = true;
