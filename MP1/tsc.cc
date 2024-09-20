@@ -335,6 +335,7 @@ void Client::Timeline(const std::string& username) {
     // ------------------------------------------------------------
 
     ClientContext context;
+    context.AddMetadata("username", username);
     // Start a gRPC client stream to communicate with the server for the Timeline
     std::shared_ptr<ClientReaderWriter<Message, Message>> stream(stub_->Timeline(&context));
 
