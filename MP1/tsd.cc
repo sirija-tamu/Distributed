@@ -255,11 +255,12 @@ class SNSServiceImpl final : public SNSService::Service {
               follower->stream->Write(m);
             }
             // Add it to their timeline.txt
-            writeToTimeline(follower->username, c->username, m)
+            writeToTimeline(follower->username, c->username, m.msg())
           }
         }
     }
     return Status::OK;
+  }
   }
 
     // Function to write into the follower's timeline
@@ -310,40 +311,41 @@ std::vector<std::vector<std::string>> get_last_20_messages(std::string username)
     return messages; 
   }
 
-  void writeMessagesToStream(const std::vector<std::vector<std::string>>& msgs, 
-                            ServerReaderWriter<Message, Message> *stream) {
-    for (const auto& msg : msgs) {
-        Message m1; // Assuming Message is the correct type for your stream
-        std::string full_message = msg[0]; // Assuming the first part is the full formatted message
+void writeMessagesToStream(const std::vector<std::vector<std::string>>& msgs, 
+                          ServerReaderWriter<Message, Message> *stream) {
+  for (const auto& msg : msgs) {
+      Message m1; // Assuming Message is the correct type for your stream
+      std::string full_message = msg[0]; // Assuming the first part is the full formatted message
 
-        // Find the position of " >> "
-        std::size_t pos = full_message.find(" >> ");
-        if (pos != std::string::npos) {
-            std::string user_info = full_message.substr(0, pos); // Get the user info
-            std::string message_text = full_message.substr(pos + 4); // Get the actual message
-            
-            // Extract the username from user_info
-            std::size_t username_end = user_info.find(" (");
-            std::string username = user_info.substr(0, username_end);
-            
-            m1.set_username(username); // Set the username
-            m1.set_msg(message_text); // Set the message text
-            stream->Write(m1); // Write the message to the stream
-        }
-    }
+      // Find the position of " >> "
+      std::size_t pos = full_message.find(" >> ");
+      if (pos != std::string::npos) {
+          std::string user_info = full_message.substr(0, pos); // Get the user info
+          std::string message_text = full_message.substr(pos + 4); // Get the actual message
+          
+          // Extract the username from user_info
+          std::size_t username_end = user_info.find(" (");
+          std::string username = user_info.substr(0, username_end);
+          
+          m1.set_username(username); // Set the username
+          m1.set_msg(message_text); // Set the message text
+          stream->Write(m1); // Write the message to the stream
+      }
   }
-  
-  void createTimeline(const std::string& username) {
-    // Open the file in append mode
-    std::ofstream outfile(username + "_timeline.txt", std::ios::app);
-    if (outfile.is_open()) {
-        // Close the file when done
-        outfile.close();
-        std::cout << "Success: Timeline file created for user '" << username << "'." << std::endl;
-    } else {
-        std::cerr << "Error: Failed to open timeline file for user '" << username << "'." << std::endl;
-    }
+}
+
+void createTimeline(const std::string& username) {
+  // Open the file in append mode
+  std::ofstream outfile(username + "_timeline.txt", std::ios::app);
+  if (outfile.is_open()) {
+      // Close the file when done
+      outfile.close();
+      std::cout << "Success: Timeline file created for user '" << username << "'." << std::endl;
+  } else {
+      std::cerr << "Error: Failed to open timeline file for user '" << username << "'." << std::endl;
   }
+}
+};
 
 void RunServer(std::string port_no) {
   std::string server_address = "0.0.0.0:"+port_no;
@@ -404,3 +406,4 @@ int main(int argc, char** argv) {
 
   return 0;
 }
+
