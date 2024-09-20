@@ -230,30 +230,36 @@ class SNSServiceImpl final : public SNSService::Service {
     return Status::OK;
   }
 
+  void PrintServerContext(const grpc::ServerContext& context) {
+      // Print metadata
+      std::cout << "ServerContext Metadata:" << std::endl;
+      for (const auto& metadata : context.client_metadata()) {
+          std::cout << metadata.first << ": " << metadata.second.data() << std::endl;
+      }
+
+      // If you want to get additional info like the client IP address
+      std::cout << "Client IP Address: " << context.peer() << std::endl;
+  }
+    
   Status Timeline(ServerContext *context,
                   ServerReaderWriter<Message, Message> *stream) override
   {
 
     Message m;
-    std::string username;
-    auto it = context->client_metadata().find("username");
-    if (it != context->client_metadata().end()) {
-        username = it->second.data();
-    }
-    Client *c = getClient(username);
-    c->stream = stream;
-    // If client hasn't stream
-    if (!c->hasStreamed) {
-        c->hasStreamed = true;
-        // read 20 latest massages from file currentuser_timeline
-        std::vector<std::vector<std::string>> msgs = get_last_20_messages(username);
-        writeMessagesToStream(msgs, stream);
-    }
-    
     // If client reading stream
-    while (stream->Read(&m)) {    
-      // If curr_user has not streamed yet
-      for (const auto& follower : c->client_followers) {
+    while (stream->Read(&m)) {
+      std::string username = m.username();
+      Client *c = getClient(username);
+      c->stream = stream;
+      // If client hasn't streamed yet
+      if (!c->hasStreamed) {
+          c->hasStreamed = true;
+          // read 20 latest massages from file currentuser_timeline
+          std::vector<std::vector<std::string>> msgs = get_last_20_messages(username);
+          writeMessagesToStream(msgs, stream);
+      } else {
+      // If curr_user started
+          for (const auto& follower : c->client_followers) {
           // If follower is active, live stream the content
           if (follower->stream != nullptr){ 
             follower->stream->Write(m);
@@ -279,10 +285,10 @@ class SNSServiceImpl final : public SNSService::Service {
 	    if (outFile.is_open()) {
 	        outFile << formatted_message;
 	        outFile.close();
-            }  
+            }
+          }
       }
-    }
-    
+      }
     return Status::OK;
   }
 

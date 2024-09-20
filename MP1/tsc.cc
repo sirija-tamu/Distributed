@@ -334,11 +334,14 @@ void Client::Timeline(const std::string& username) {
     // CTRL-C (SIGINT)
     // ------------------------------------------------------------
 
-    ClientContext context;
-    context.AddMetadata("username", username);
     // Start a gRPC client stream to communicate with the server for the Timeline
+    ClientContext context;
     std::shared_ptr<ClientReaderWriter<Message, Message>> stream(stub_->Timeline(&context));
-
+    
+    Message user_started_timeline_indicator;
+    user_started_timeline_indicator.set_username(username);
+    stream->Write(user_started_timeline_indicator);
+            
     // Create threads for reading and writing messages to/from the stream
     std::thread writer_thread([this, &stream, &username]() {
         while (true) {
