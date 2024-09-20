@@ -46,6 +46,10 @@
 #include <google/protobuf/util/time_util.h>
 #include <grpc++/grpc++.h>
 #include<glog/logging.h>
+#include <cstdio>
+#include <dirent.h>
+#include <cstring>
+#include <iostream>
 #define log(severity, msg) LOG(severity) << msg; google::FlushLogFiles(google::severity); 
 
 #include "sns.grpc.pb.h"
@@ -361,6 +365,30 @@ void RunServer(std::string port_no) {
   server->Wait();
 }
 
+void clearTimelineFilesInCurrentDirectory() {
+    DIR* dir = opendir(".");
+    if (dir == nullptr) {
+        std::cerr << "Could not clear Timeline, please restart." << std::endl;
+        return;
+    }
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        std::string filename = entry->d_name;
+
+        // Check if the file ends with "_timeline.txt"
+        if (filename.size() >= 13 && filename.compare(filename.size() - 13, 13, "_timeline.txt") == 0) {
+            if (std::remove(filename.c_str()) == 0) {
+                std::cout << "Cleared file: " << filename << std::endl;
+            } else {
+                std::cerr << "Failed to remove file: " << filename << std::endl;
+            }
+        }
+    }
+
+    closedir(dir);
+}
+
+
 int main(int argc, char** argv) {
 
   std::string port = "3010";
@@ -374,7 +402,7 @@ int main(int argc, char** argv) {
 	  std::cerr << "Invalid Command Line Argument\n";
     }
   }
-  
+  clearTimelineFilesInCurrentDirectory();
   std::string log_file_name = std::string("server-") + port;
   google::InitGoogleLogging(log_file_name.c_str());
   log(INFO, "Logging Initialized. Server starting...");
