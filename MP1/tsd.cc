@@ -221,13 +221,7 @@ class SNSServiceImpl final : public SNSService::Service {
         curr_user->username = request->username();
         curr_user->connected = true;
         // Create the user’s timeline file if it doesn't exist or is empty
-        std::ofstream userFile(request->username() + ".txt", std::ios::app);
-        if (userFile.is_open()) {
-            userFile << "Now you are in your Timeline";
-            userFile.close();
-        }
-        // Create the user’s follower messages file
-        std::ofstream followersFile(request->username() + "_following.txt", std::ios::app);
+        create_or_check_file("tl", curr_user->username);
         client_db.push_back(curr_user);
     }
 
@@ -277,40 +271,117 @@ class SNSServiceImpl final : public SNSService::Service {
   }
 
 
-  Status Timeline(ServerContext* context, 
-		ServerReaderWriter<Message, Message>* stream) override {
-      Message m;
-      while (stream->Read(&m)) {
-        // Extract username and client object
-        std::string u = m.username();  
-        Client* c = getClient(u);      
-        
-        // Format the message for file output
-        std::string ffo = format_file_output(m.username(), m.msg());
+  Status Timeline(ServerContext *context,
+                  ServerReaderWriter<Message, Message> *stream) override
+  {
 
-        // Check if this is the first time the client is streaming the timeline
-        if (!c->hasStreamed) {
-            // First time: initialize user files and set the hasStreamed flag to true
-            c->hasStreamed = true;
-        } else {
-            // Read the latest 20 messages from the user's followers' file
-            std::vector<std::string> lat20 = read_latest_20_messages(u + "_following.txt");
-            for (const auto& msg : lat20) {
-                Message latest_msg;
-                latest_msg.set_msg(msg);
-                stream->Write(latest_msg);  // Send the latest messages to the client
-            }
-        }
-
-        // For each follower of the client, stream the new message
-        for (const auto& follower : c->client_followers) {
-            follower->stream->Write(m);  // Send new message to follower
-            append_to_file(follower->username + "_following.txt", ffo);  // Append to follower's file
-        }
+    Message m;
+    while (stream->Read(&m))
+    {
+      std::string username = m.username();
+      Client *c = getClient(username);
+	    
+      // if curr_user has not streamed yet
+      if (!c->hasStreamed)
+      {
+        c->hasStreamed = true;
+	c->stream = stream;
+        // read 20 latest massages from file currentuser_timeline
+        std::vector<std::vector<std::string>> msgs = get_last_20_messages(username);
+	// Write the posts into the stream
+	for (const auto& msg : msgs) {
+	    Message m1; // Assuming Message is the correct type for your stream
+	    std::string full_message = msg[0]; // Assuming the first part is the full formatted message
+	
+	    // Find the position of " >> "
+	    std::size_t pos = full_message.find(" >> ");
+	    if (pos != std::string::npos) {
+	        std::string user_info = full_message.substr(0, pos); // Get the user info
+	        std::string message_text = full_message.substr(pos + 4); // Get the actual message
+	        
+	        // Extract the username from user_info
+	        std::size_t username_end = user_info.find(" (");
+	        std::string username = user_info.substr(0, username_end);
+	        
+	        m1.set_username(username); // Set the username
+	        m1.set_msg(message_text); // Set the message text
+	        stream->Write(m1); // Write the message to the stream
+	    }
+	}
+      }
+	    
+      for (const auto& follower : c->client_followers) {
+          // If follower is active, live stream the content
+          if (follower->stream != nullptr){ 
+            follower->stream->Write(m);
+	  }
+	  // Maintain their timeline in the follower->user_name._tl file
+	    std::string filename = follower->username + "_tl.txt";
+	
+	    // Get the current time for the timestamp
+	    auto now = std::chrono::system_clock::now();
+	    std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+	    std::tm* local_tm = std::localtime(&now_time);
+	
+	    // Format the timestamp
+	    std::ostringstream oss;
+	    oss << std::put_time(local_tm, "%Y-%m-%d %H:%M:%S");
+	    std::string timestamp = oss.str();
+	
+	    // Format the output string
+	    std::string formatted_message = c->username + " (" + timestamp + ") >> " + m.msg() + "\n";
+	    
+	    // Append the formatted message to the follower's timeline file
+	    std::ofstream outFile(filename, std::ios::app);
+	    if (outFile.is_open()) {
+	        outFile << formatted_message;
+	        outFile.close();
+            }  
+      }
     }
     return Status::OK;
   }
 
+  std::vector<std::vector<std::string>> get_last_20_messages(std::string username)
+  {
+    std::string filename = username + "_tl.txt"; // File containing the user's messages
+    std::ifstream inFile(filename);
+    std::vector<std::vector<std::string>> messages; // To store the messages
+    std::string line;
+    while (std::getline(inFile, line)) {
+	// Add the message directly to the vector
+	messages.push_back({line}); // Store the entire line as a single element vector
+	// Keep only the last 20 messages
+	if (messages.size() > 20) {
+	  messages.erase(messages.begin()); // Remove the oldest message
+	}
+    }
+    inFile.close();
+    return messages; 
+  }
+
+  void create_or_check_file(std::string attr, std::string name) {
+     // Open the file in append
+     std::ofstream outfile(name + "_" + attr + ".txt", std::ios::app);
+     if (outfile.is_open()) {
+	// Close the file when done
+	outfile.close();
+	std::cout << attr + " File created for " + name << std::endl;
+     } else{
+	std::cerr << attr + " Failed to open the file for " + name << std::endl;
+     }
+   }
+	
+   Message MakeMessage(const std::string &username, const std::string &msg) {
+	Message m;
+	m.set_username(username);
+	m.set_msg(msg);
+	google::protobuf::Timestamp *timestamp = new google::protobuf::Timestamp();
+	timestamp->set_seconds(time(NULL));
+	timestamp->set_nanos(0);
+	m.set_allocated_timestamp(timestamp);
+	return m;
+   }
 };
 
 void RunServer(std::string port_no) {
