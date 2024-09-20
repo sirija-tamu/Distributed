@@ -221,7 +221,7 @@ class SNSServiceImpl final : public SNSService::Service {
         curr_user->username = request->username();
         curr_user->connected = true;
         // Create the user’s timeline file if it doesn't exist or is empty
-        create_or_check_file("tl", curr_user->username);
+        createTimeline(curr_user->username);
         client_db.push_back(curr_user);
     }
 
@@ -230,93 +230,36 @@ class SNSServiceImpl final : public SNSService::Service {
     return Status::OK;
   }
 
-  std::string format_file_output(const std::string& username, const std::string& message) {
-     // Get the current time
-     auto now = std::chrono::system_clock::now();
-     std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-     std::tm* local_tm = std::localtime(&now_time);
-	
-     // Format the timestamp
-     std::ostringstream oss;
-     oss << std::put_time(local_tm, "%Y-%m-%d %H:%M:%S");
-     std::string timestamp = oss.str();
-	
-     // Format the output string
-     return username + " (" + timestamp + ") >> " + message + "\n";
-  }
-
-  void append_to_file(const std::string& filename, const std::string& formatted_message) {
-      std::ofstream outFile(filename, std::ios::app);
-      if (outFile.is_open()) {
-          outFile << formatted_message;
-          outFile.close();
-      }
-  }
-
-  std::vector<std::string> read_latest_20_messages(const std::string& filename) {
-      std::ifstream inFile(filename);
-      std::vector<std::string> messages;
-      std::string line;
-      
-      while (std::getline(inFile, line)) {
-          messages.push_back(line);
-      }
-      
-      // Only return the last 20 messages
-      if (messages.size() > 20) {
-          messages.erase(messages.begin(), messages.end() - 20);
-      }
-      
-      return messages;
-  }
-
-
   Status Timeline(ServerContext *context,
                   ServerReaderWriter<Message, Message> *stream) override
   {
 
     Message m;
-    while (stream->Read(&m))
-    {
-      std::string username = m.username();
-      Client *c = getClient(username);
-	    
-      // if curr_user has not streamed yet
-      if (!c->hasStreamed)
-      {
+    std::string username;
+    auto it = context->client_metadata().find("username");
+    if (it != context->client_metadata().end()) {
+        username = it->second.data();
+    }
+    Client *c = getClient(username);
+    c->stream = stream;
+    // If client hasn't stream
+    if (!c->hasStreamed) {
         c->hasStreamed = true;
-	c->stream = stream;
         // read 20 latest massages from file currentuser_timeline
         std::vector<std::vector<std::string>> msgs = get_last_20_messages(username);
-	// Write the posts into the stream
-	for (const auto& msg : msgs) {
-	    Message m1; // Assuming Message is the correct type for your stream
-	    std::string full_message = msg[0]; // Assuming the first part is the full formatted message
-	
-	    // Find the position of " >> "
-	    std::size_t pos = full_message.find(" >> ");
-	    if (pos != std::string::npos) {
-	        std::string user_info = full_message.substr(0, pos); // Get the user info
-	        std::string message_text = full_message.substr(pos + 4); // Get the actual message
-	        
-	        // Extract the username from user_info
-	        std::size_t username_end = user_info.find(" (");
-	        std::string username = user_info.substr(0, username_end);
-	        
-	        m1.set_username(username); // Set the username
-	        m1.set_msg(message_text); // Set the message text
-	        stream->Write(m1); // Write the message to the stream
-	    }
-	}
-      }
-	    
+        writeMessagesToStream(msgs, stream);
+    }
+    
+    // If client reading stream
+    while (stream->Read(&m)) {    
+      // If curr_user has not streamed yet
       for (const auto& follower : c->client_followers) {
           // If follower is active, live stream the content
           if (follower->stream != nullptr){ 
             follower->stream->Write(m);
 	  }
-	  // Maintain their timeline in the follower->user_name._tl file
-	    std::string filename = follower->username + "_tl.txt";
+	  // Maintain their timeline in the follower->user_name._timeline file
+	    std::string filename = follower->username + "_timeline.txt";
 	
 	    // Get the current time for the timestamp
 	    auto now = std::chrono::system_clock::now();
@@ -339,38 +282,73 @@ class SNSServiceImpl final : public SNSService::Service {
             }  
       }
     }
+    
     return Status::OK;
   }
 
-  std::vector<std::vector<std::string>> get_last_20_messages(std::string username)
-  {
-    std::string filename = username + "_tl.txt"; // File containing the user's messages
+  std::vector<std::vector<std::string>> get_last_20_messages(std::string username) {
+    std::cout << " get_last_20_messages " + username << std::endl;
+    std::string filename = username + "_timeline.txt"; // File containing the user's messages
     std::ifstream inFile(filename);
     std::vector<std::vector<std::string>> messages; // To store the messages
     std::string line;
+    std::cout << " Fetching the top20 " + username << std::endl;
     while (std::getline(inFile, line)) {
 	// Add the message directly to the vector
+	std::cout << " line " + line << std::endl;
 	messages.push_back({line}); // Store the entire line as a single element vector
 	// Keep only the last 20 messages
 	if (messages.size() > 20) {
 	  messages.erase(messages.begin()); // Remove the oldest message
 	}
+	std::cout << " File created for " + username << std::endl;
     }
     inFile.close();
+    std::cout << "printing message" << std::endl; // Print the full message
+        for (const auto& message : messages) {
+        std::string fullMessage;
+        for (const auto& part : message) {
+            fullMessage += part + " "; // Concatenate each part with a space
+        }
+        std::cout << fullMessage << std::endl; // Print the full message
+    }
     return messages; 
   }
+  
+  void writeMessagesToStream(const std::vector<std::vector<std::string>>& msgs, 
+                            ServerReaderWriter<Message, Message> *stream) {
+    for (const auto& msg : msgs) {
+        Message m1; // Assuming Message is the correct type for your stream
+        std::string full_message = msg[0]; // Assuming the first part is the full formatted message
 
-  void create_or_check_file(std::string attr, std::string name) {
-     // Open the file in append
-     std::ofstream outfile(name + "_" + attr + ".txt", std::ios::app);
-     if (outfile.is_open()) {
-	// Close the file when done
-	outfile.close();
-	std::cout << attr + " File created for " + name << std::endl;
-     } else{
-	std::cerr << attr + " Failed to open the file for " + name << std::endl;
-     }
-   }
+        // Find the position of " >> "
+        std::size_t pos = full_message.find(" >> ");
+        if (pos != std::string::npos) {
+            std::string user_info = full_message.substr(0, pos); // Get the user info
+            std::string message_text = full_message.substr(pos + 4); // Get the actual message
+            
+            // Extract the username from user_info
+            std::size_t username_end = user_info.find(" (");
+            std::string username = user_info.substr(0, username_end);
+            
+            m1.set_username(username); // Set the username
+            m1.set_msg(message_text); // Set the message text
+            stream->Write(m1); // Write the message to the stream
+        }
+    }
+  }
+
+    void createTimeline(const std::string& username) {
+        // Open the file in append mode
+        std::ofstream outfile(username + "_timeline.txt", std::ios::app);
+        if (outfile.is_open()) {
+            // Close the file when done
+            outfile.close();
+            std::cout << "Success: Timeline file created for user '" << username << "'." << std::endl;
+        } else {
+            std::cerr << "Error: Failed to open timeline file for user '" << username << "'." << std::endl;
+        }
+    }
 	
    Message MakeMessage(const std::string &username, const std::string &msg) {
 	Message m;
