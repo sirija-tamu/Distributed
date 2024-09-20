@@ -78,6 +78,7 @@ struct Client {
   std::vector<Client*> client_followers;
   std::vector<Client*> client_following;
   ServerReaderWriter<Message, Message>* stream = 0;
+  bool hasStreamed = false;
   bool operator==(const Client& c1) const{
     return (username == c1.username);
   }
@@ -235,36 +236,29 @@ class SNSServiceImpl final : public SNSService::Service {
 
   Status Timeline(ServerContext* context, 
 		ServerReaderWriter<Message, Message>* stream) override {
-
-
     Message m;
-    bool hasStreamed = false;
-    // First message or indicator, read 20 latest messages and write the messages to stream
-    if (!hasStreamed) {
-      while (stream->Read(&m)) {
-        hasStreamed = true;
+    while (stream->Read(&m)) {
         std::string username = m.username();
         Client *c = getClient(username);
-        c->stream = stream;
-        // read 20 latest massages from file currentuser_timeline
-        std::vector<std::vector<std::string>> msgs = get_last_20_messages(username);
-        // write messages into the stream
-        writeMessagesToStream(msgs, stream);
-        break
-      }
-    } 
-    // if current user started posting
-    while (stream->Read(&m)) {
-      // If curr_user started
-      for (const auto& follower : c->client_followers) {
-      // If follower is active, live stream the content
-      if (follower->stream != nullptr){ 
-        follower->stream->Write(m);
-	    }
-      // Add it to their timeline.txt
-      writeToTimeline(follower->username, c->username, m)
+        if (!c->hasStreamed) {
+          c->hasStreamed = true;
+          c->stream = stream;
+          // read 20 latest massages from file currentuser_timeline
+          std::vector<std::vector<std::string>> msgs = get_last_20_messages(username);
+          // write messages into the stream
+          writeMessagesToStream(msgs, stream);
+        } else {
+          // if current user started posting
+          for (const auto& follower : c->client_followers) {
+            // If follower is active, live stream the content
+            if (follower->stream != nullptr){ 
+              follower->stream->Write(m);
+            }
+            // Add it to their timeline.txt
+            writeToTimeline(follower->username, c->username, m)
+          }
+        }
     }
-    
     return Status::OK;
   }
 
