@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <csignal>
 #include <grpc++/grpc++.h>
+#include <google/protobuf/timestamp.pb.h>
+#include <google/protobuf/util/time_util.h>
 #include "client.h"
 #include <iomanip>
 
@@ -153,6 +155,7 @@ IReply Client::processCommand(std::string& input)
     IReply ire;
     size_t space_pos = input.find(' ');
     std::string command = (space_pos == std::string::npos) ? input : input.substr(0, space_pos);
+    std::transform(command.begin(), command.end(), command.begin(), ::toupper);
     if (command == "FOLLOW") {
         std::string username = (space_pos == std::string::npos) ? "" : input.substr(space_pos + 1);
         return Client::Follow(username);
@@ -354,23 +357,15 @@ void Client::Timeline(const std::string& username) {
     // Create threads for reading and writing messages to/from the stream
     std::thread writer_thread([this, &stream, &username]() {
         while (true) {
-            // Get a new post message from the user input
-            Message post;
-            post.set_username(username);
-            post.set_msg(getPostMessage());
             // Write the post message to the stream (server)
-            stream->Write(post);
+            stream->Write(MakeMessage(username, getPostMessage()));
         }
     });
 
     std::thread reader_thread([this, &stream]() {
         Message m;
         while (stream->Read(&m)) {
-            // Display the post message received from the server with a timestamp
-            //<TODO>: Correct the time stamp
-            google::protobuf::Timestamp timestamp = m.timestamp();
-            std::time_t time_value = static_cast<std::time_t>(timestamp.seconds());
-            displayPostMessage(m.username(), m.msg(), time_value);
+            displayPostMessage(m.msg());
         }
     });
 
@@ -388,7 +383,7 @@ int main(int argc, char** argv) {
 
   std::string hostname = "localhost";
   std::string username = "default";
-  std::string port = "3011";
+  std::string port = "3013";
     
   int opt = 0;
   while ((opt = getopt(argc, argv, "h:u:p:")) != -1){

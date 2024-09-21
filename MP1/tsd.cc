@@ -248,15 +248,16 @@ class SNSServiceImpl final : public SNSService::Service {
       if (!c->hasStreamed) {
           c->hasStreamed = true;
           // read 20 latest massages from file currentuser_timeline
-          std::vector<std::vector<std::string>> msgs = get_last_20_messages(username);
-          writeMessagesToStream(msgs, stream);
+          std::vector<std::vector<std::string>> msgs = get_last_20_messages(c, username);
+          for (int i=0; i <msgs.size();i++){
+              Message sending;
+              sending.set_msg(msgs[i][0]);
+              sending.set_username(c->username);
+              c->stream->Write(sending);
+          }
       } else {
       // If curr_user started
           for (const auto& follower : c->client_followers) {
-          // If follower is active, live stream the content
-          if (follower->stream != nullptr){ 
-            follower->stream->Write(m);
-	  }
 	  // Maintain their timeline in the follower->user_name._timeline file
 	    std::string filename = follower->username + "_timeline.txt";
 	
@@ -279,28 +280,51 @@ class SNSServiceImpl final : public SNSService::Service {
 	        outFile << formatted_message;
 	        outFile.close();
             }
+            
+            // If follower is active, live stream the content
+            if (follower->stream != nullptr){
+              Message sending;
+              sending.set_username(c->username);
+              sending.set_msg(formatted_message);
+              follower->stream->Write(sending);
+	    }
           }
       }
       }
     return Status::OK;
   }
+  
+  Message MakeMessage(const std::string& username, const std::string& msg) {
+    Message m;
+    m.set_username(username);
+    m.set_msg(msg);
+    google::protobuf::Timestamp* timestamp = new google::protobuf::Timestamp();
+    timestamp->set_seconds(time(NULL));
+    timestamp->set_nanos(0);
+    m.set_allocated_timestamp(timestamp);
+    return m;
+  }
 
-  std::vector<std::vector<std::string>> get_last_20_messages(std::string username) {
-    std::cout << " get_last_20_messages " + username << std::endl;
+  std::vector<std::vector<std::string>> get_last_20_messages(Client* c, std::string username) {
     std::string filename = username + "_timeline.txt"; // File containing the user's messages
     std::ifstream inFile(filename);
     std::vector<std::vector<std::string>> messages; // To store the messages
     std::string line;
-    std::cout << " Fetching the top20 " + username << std::endl;
     while (std::getline(inFile, line)) {
-	// Add the message directly to the vector
-	std::cout << " line " + line << std::endl;
-	messages.push_back({line}); // Store the entire line as a single element vector
-	// Keep only the last 20 messages
-	if (messages.size() > 20) {
-	  messages.erase(messages.begin()); // Remove the oldest message
-	}
-	std::cout << " File created for " + username << std::endl;
+	// Find the position of the first space
+        std::size_t space_pos = line.find(' ');
+        // Extract the username
+        std::string username = line.substr(0, space_pos);
+        for (Client* follower : c->client_followers) {
+            if (follower->username == username) {
+	      messages.push_back({line}); // Store the entire line as a single element vector
+	      // Keep only the last 20 messages
+	      if (messages.size() > 20) {
+	        messages.erase(messages.begin()); // Remove the oldest message
+	      }
+	    }
+	    break;
+        }
     }
     inFile.close();
     return messages; 
@@ -324,6 +348,7 @@ class SNSServiceImpl final : public SNSService::Service {
             
             m1.set_username(username); // Set the username
             m1.set_msg(message_text); // Set the message text
+            
             stream->Write(m1); // Write the message to the stream
         }
     }
@@ -379,7 +404,7 @@ void clearTimelineFilesInCurrentDirectory() {
 
 int main(int argc, char** argv) {
 
-  std::string port = "3011";
+  std::string port = "3013";
   
   int opt = 0;
   while ((opt = getopt(argc, argv, "p:")) != -1){
