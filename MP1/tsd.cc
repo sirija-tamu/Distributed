@@ -229,17 +229,6 @@ class SNSServiceImpl final : public SNSService::Service {
     reply->set_msg("SUCCESS: Logged in successfully.");
     return Status::OK;
   }
-
-  void PrintServerContext(const grpc::ServerContext& context) {
-      // Print metadata
-      std::cout << "ServerContext Metadata:" << std::endl;
-      for (const auto& metadata : context.client_metadata()) {
-          std::cout << metadata.first << ": " << metadata.second.data() << std::endl;
-      }
-
-      // If you want to get additional info like the client IP address
-      std::cout << "Client IP Address: " << context.peer() << std::endl;
-  }
     
   Status Timeline(ServerContext *context,
                   ServerReaderWriter<Message, Message> *stream) override
@@ -310,14 +299,6 @@ class SNSServiceImpl final : public SNSService::Service {
 	std::cout << " File created for " + username << std::endl;
     }
     inFile.close();
-    std::cout << "printing message" << std::endl; // Print the full message
-        for (const auto& message : messages) {
-        std::string fullMessage;
-        for (const auto& part : message) {
-            fullMessage += part + " "; // Concatenate each part with a space
-        }
-        std::cout << fullMessage << std::endl; // Print the full message
-    }
     return messages; 
   }
   
@@ -355,17 +336,6 @@ class SNSServiceImpl final : public SNSService::Service {
             std::cerr << "Error: Failed to open timeline file for user '" << username << "'." << std::endl;
         }
     }
-	
-   Message MakeMessage(const std::string &username, const std::string &msg) {
-	Message m;
-	m.set_username(username);
-	m.set_msg(msg);
-	google::protobuf::Timestamp *timestamp = new google::protobuf::Timestamp();
-	timestamp->set_seconds(time(NULL));
-	timestamp->set_nanos(0);
-	m.set_allocated_timestamp(timestamp);
-	return m;
-   }
 };
 
 void RunServer(std::string port_no) {

@@ -95,7 +95,7 @@ int Client::connectTo()
 
   // Check if the stub is created successfully
   if (ire.comm_status == IStatus::SUCCESS) {
-      std::cout << "Connected to gRPC server at " << server_address << std::endl;
+      std::cout << "Connected to gRPC server" << std::endl;
       return 1;  // Success
   } else {
       std::cerr << "Failed to create gRPC stub." << std::endl;
@@ -170,7 +170,6 @@ IReply Client::processCommand(std::string& input)
 }
 
 
-
 void Client::processTimeline()
 {
     Timeline(username);
@@ -223,7 +222,7 @@ IReply Client::Follow(const std::string& username2) {
 
     if (status.ok()) {
           const std::string& msg = follow_reply.msg();
-
+          // based on the msg, set the status
           if (msg.find("FAILURE_INVALID_USERNAME") != std::string::npos) {
               ire.comm_status = IStatus::FAILURE_INVALID_USERNAME;
           } else if (msg.find("FAILURE_ALREADY_EXISTS") != std::string::npos) {
@@ -262,7 +261,7 @@ IReply Client::UnFollow(const std::string& username2) {
 
     if (status.ok()) {
           const std::string& msg = unfollow_reply.msg();
-
+          // based on the msg, set the status
           if (msg.find("FAILURE_INVALID_USERNAME") != std::string::npos) {
               ire.comm_status = IStatus::FAILURE_INVALID_USERNAME;
           } else if (msg.find("FAILURE_INVALID") != std::string::npos) {
@@ -338,6 +337,7 @@ void Client::Timeline(const std::string& username) {
     ClientContext context;
     std::shared_ptr<ClientReaderWriter<Message, Message>> stream(stub_->Timeline(&context));
     
+    // Sending the first message to the time line, Note: this is blank message to indicate first time user.
     Message user_started_timeline_indicator;
     user_started_timeline_indicator.set_username(username);
     stream->Write(user_started_timeline_indicator);
@@ -347,9 +347,8 @@ void Client::Timeline(const std::string& username) {
         while (true) {
             // Get a new post message from the user input
             Message post;
-	    post.set_username(username);
-	    post.set_msg(getPostMessage());
-
+            post.set_username(username);
+            post.set_msg(getPostMessage());
             // Write the post message to the stream (server)
             stream->Write(post);
         }
@@ -359,6 +358,7 @@ void Client::Timeline(const std::string& username) {
         Message m;
         while (stream->Read(&m)) {
             // Display the post message received from the server with a timestamp
+            //<TODO>: Correct the time stamp
             google::protobuf::Timestamp timestamp = m.timestamp();
             std::time_t time_value = static_cast<std::time_t>(timestamp.seconds());
             displayPostMessage(m.username(), m.msg(), time_value);
