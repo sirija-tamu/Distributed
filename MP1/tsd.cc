@@ -32,6 +32,10 @@
  */
 
 #include <ctime>
+#include <cstdio>
+#include <dirent.h>
+#include <cstring>
+#include <iostream>
 
 #include <google/protobuf/timestamp.pb.h>
 #include <google/protobuf/duration.pb.h>
@@ -202,7 +206,7 @@ class SNSServiceImpl final : public SNSService::Service {
 
   // RPC Login
   Status Login(ServerContext* context, const Request* request, Reply* reply) override {
-
+    log(INFO, "Trying to login"+request->username());
     // Find the client in the client_db using the helper function
     Client* curr_user = getClient(request->username());
 
@@ -352,9 +356,30 @@ void RunServer(std::string port_no) {
   server->Wait();
 }
 
+void clearTimelineFilesInCurrentDirectory() {
+    DIR* dir = opendir(".");
+    if (dir == nullptr) {
+        std::cerr << "Could not clear Timeline, please restart." << std::endl;
+        return;
+    }
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        std::string filename = entry->d_name;
+        // Check if the file ends with "_timeline.txt"
+        if (filename.size() >= 13 && filename.compare(filename.size() - 13, 13, "_timeline.txt") == 0) {
+            if (std::remove(filename.c_str()) == 0) {
+                std::cout << "Cleared file: " << filename << std::endl;
+            } else {
+                std::cerr << "Failed to remove file: " << filename << std::endl;
+            }
+        }
+    }
+    closedir(dir);
+}
+
 int main(int argc, char** argv) {
 
-  std::string port = "3010";
+  std::string port = "3011";
   
   int opt = 0;
   while ((opt = getopt(argc, argv, "p:")) != -1){
@@ -365,7 +390,7 @@ int main(int argc, char** argv) {
 	  std::cerr << "Invalid Command Line Argument\n";
     }
   }
-  
+  clearTimelineFilesInCurrentDirectory();
   std::string log_file_name = std::string("server-") + port;
   google::InitGoogleLogging(log_file_name.c_str());
   log(INFO, "Logging Initialized. Server starting...");

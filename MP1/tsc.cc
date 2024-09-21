@@ -225,14 +225,18 @@ IReply Client::Follow(const std::string& username2) {
           // based on the msg, set the status
           if (msg.find("FAILURE_INVALID_USERNAME") != std::string::npos) {
               ire.comm_status = IStatus::FAILURE_INVALID_USERNAME;
+              std::cout << "FAILURE_INVALID_USERNAME" << std::endl;
           } else if (msg.find("FAILURE_ALREADY_EXISTS") != std::string::npos) {
               ire.comm_status = IStatus::FAILURE_ALREADY_EXISTS;
+              std::cout << "FAILURE_ALREADY_EXISTS" << std::endl;
           } else if (msg.find("SUCCESS") != std::string::npos) {
               ire.comm_status = IStatus::SUCCESS;
           } else {
+              std::cout << "FAILURE_UNKNOWN" << std::endl;
               ire.comm_status = IStatus::FAILURE_UNKNOWN;
           }
     } else {
+          std::cout << "COULDN't CONNECT" << std::endl;
           ire.comm_status = IStatus::FAILURE_UNKNOWN;
     }
 
@@ -263,15 +267,19 @@ IReply Client::UnFollow(const std::string& username2) {
           const std::string& msg = unfollow_reply.msg();
           // based on the msg, set the status
           if (msg.find("FAILURE_INVALID_USERNAME") != std::string::npos) {
+              std::cout << "FAILURE_INVALID_USERNAME" << std::endl;
               ire.comm_status = IStatus::FAILURE_INVALID_USERNAME;
           } else if (msg.find("FAILURE_INVALID") != std::string::npos) {
+              std::cout << "FAILURE_INVALID" << std::endl;
               ire.comm_status = IStatus::FAILURE_INVALID;
           } else if (msg.find("SUCCESS") != std::string::npos) {
               ire.comm_status = IStatus::SUCCESS;
           } else {
+              std::cout << "FAILURE_UNKOWN" << std::endl;
               ire.comm_status = IStatus::FAILURE_UNKNOWN;
           }
     } else {
+          std::cout << "COULDN'T CONNECT" << std::endl;
           ire.comm_status = IStatus::FAILURE_UNKNOWN;
     }
     
@@ -300,6 +308,7 @@ IReply Client::Login() {
     if (status.ok()) {
           const std::string& msg = login_reply.msg();
           if (msg.find("FAILURE_ALREADY_EXISTS") != std::string::npos) {
+              
               ire.comm_status = IStatus::FAILURE_ALREADY_EXISTS;
           } else if (msg.find("SUCCESS") != std::string::npos) {
               ire.comm_status = IStatus::SUCCESS;
@@ -379,7 +388,7 @@ int main(int argc, char** argv) {
 
   std::string hostname = "localhost";
   std::string username = "default";
-  std::string port = "3010";
+  std::string port = "3011";
     
   int opt = 0;
   while ((opt = getopt(argc, argv, "h:u:p:")) != -1){
