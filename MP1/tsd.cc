@@ -46,10 +46,6 @@
 #include <google/protobuf/util/time_util.h>
 #include <grpc++/grpc++.h>
 #include<glog/logging.h>
-#include <cstdio>
-#include <dirent.h>
-#include <cstring>
-#include <iostream>
 #define log(severity, msg) LOG(severity) << msg; google::FlushLogFiles(google::severity); 
 
 #include "sns.grpc.pb.h"
@@ -234,117 +230,142 @@ class SNSServiceImpl final : public SNSService::Service {
     return Status::OK;
   }
 
-  Status Timeline(ServerContext* context, 
-		ServerReaderWriter<Message, Message>* stream) override {
+  void PrintServerContext(const grpc::ServerContext& context) {
+      // Print metadata
+      std::cout << "ServerContext Metadata:" << std::endl;
+      for (const auto& metadata : context.client_metadata()) {
+          std::cout << metadata.first << ": " << metadata.second.data() << std::endl;
+      }
+
+      // If you want to get additional info like the client IP address
+      std::cout << "Client IP Address: " << context.peer() << std::endl;
+  }
+    
+  Status Timeline(ServerContext *context,
+                  ServerReaderWriter<Message, Message> *stream) override
+  {
+
     Message m;
+    // If client reading stream
     while (stream->Read(&m)) {
-        std::string username = m.username();
-        Client *c = getClient(username);
-        if (!c->hasStreamed) {
+      std::string username = m.username();
+      Client *c = getClient(username);
+      c->stream = stream;
+      // If client hasn't streamed yet
+      if (!c->hasStreamed) {
           c->hasStreamed = true;
-          c->stream = stream;
           // read 20 latest massages from file currentuser_timeline
           std::vector<std::vector<std::string>> msgs = get_last_20_messages(username);
-          // write messages into the stream
           writeMessagesToStream(msgs, stream);
-        } else {
-          // if current user started posting
+      } else {
+      // If curr_user started
           for (const auto& follower : c->client_followers) {
-            // If follower is active, live stream the content
-            if (follower->stream != nullptr){ 
-              follower->stream->Write(m);
+          // If follower is active, live stream the content
+          if (follower->stream != nullptr){ 
+            follower->stream->Write(m);
+	  }
+	  // Maintain their timeline in the follower->user_name._timeline file
+	    std::string filename = follower->username + "_timeline.txt";
+	
+	    // Get the current time for the timestamp
+	    auto now = std::chrono::system_clock::now();
+	    std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+	    std::tm* local_tm = std::localtime(&now_time);
+	
+	    // Format the timestamp
+	    std::ostringstream oss;
+	    oss << std::put_time(local_tm, "%Y-%m-%d %H:%M:%S");
+	    std::string timestamp = oss.str();
+	
+	    // Format the output string
+	    std::string formatted_message = c->username + " (" + timestamp + ") >> " + m.msg() + "\n";
+	    
+	    // Append the formatted message to the follower's timeline file
+	    std::ofstream outFile(filename, std::ios::app);
+	    if (outFile.is_open()) {
+	        outFile << formatted_message;
+	        outFile.close();
             }
-            // Add it to their timeline.txt
-            writeToTimeline(follower->username, c->username, m.msg())
           }
-        }
-    }
+      }
+      }
     return Status::OK;
   }
-  }
 
-    // Function to write into the follower's timeline
-  void writeToTimeline(const std::string& followerUsername, const std::string& messageSender, const std::string& messageContent) {
-      // Maintain their timeline in the follower->username._timeline file
-      std::string filename = followerUsername + "_timeline.txt";
-      
-      // Get the current time for the timestamp
-      auto now = std::chrono::system_clock::now();
-      std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-      std::tm* local_tm = std::localtime(&now_time);
-
-      // Format the timestamp
-      std::ostringstream oss;
-      oss << std::put_time(local_tm, "%Y-%m-%d %H:%M:%S");
-      std::string timestamp = oss.str();
-
-      // Format the output string
-      std::string formatted_message = messageSender + " (" + timestamp + ") >> " + messageContent + "\n";
-      
-      // Append the formatted message to the follower's timeline file
-      std::ofstream outFile(filename, std::ios::app);
-      if (outFile.is_open()) {
-          outFile << formatted_message;
-          outFile.close();
-      } else {
-          std::cerr << "Error: Unable to open file " << filename << std::endl;
-      }
-  }
-
-std::vector<std::vector<std::string>> get_last_20_messages(std::string username) {
-    // File containing the user's timeline
-    std::string filename = username + "_timeline.txt"; 
+  std::vector<std::vector<std::string>> get_last_20_messages(std::string username) {
+    std::cout << " get_last_20_messages " + username << std::endl;
+    std::string filename = username + "_timeline.txt"; // File containing the user's messages
     std::ifstream inFile(filename);
     std::vector<std::vector<std::string>> messages; // To store the messages
     std::string line;
-    // TODO: change Logic
+    std::cout << " Fetching the top20 " + username << std::endl;
     while (std::getline(inFile, line)) {
-      // Add the message directly to the vector
-      std::cout << " line " + line << std::endl;
-      messages.push_back({line}); // Store the entire line as a single element vector
-      // Keep only the last 20 messages
-      if (messages.size() > 20) {
-        messages.erase(messages.begin()); // Remove the oldest message
-      }
+	// Add the message directly to the vector
+	std::cout << " line " + line << std::endl;
+	messages.push_back({line}); // Store the entire line as a single element vector
+	// Keep only the last 20 messages
+	if (messages.size() > 20) {
+	  messages.erase(messages.begin()); // Remove the oldest message
+	}
+	std::cout << " File created for " + username << std::endl;
     }
     inFile.close();
+    std::cout << "printing message" << std::endl; // Print the full message
+        for (const auto& message : messages) {
+        std::string fullMessage;
+        for (const auto& part : message) {
+            fullMessage += part + " "; // Concatenate each part with a space
+        }
+        std::cout << fullMessage << std::endl; // Print the full message
+    }
     return messages; 
   }
+  
+  void writeMessagesToStream(const std::vector<std::vector<std::string>>& msgs, 
+                            ServerReaderWriter<Message, Message> *stream) {
+    for (const auto& msg : msgs) {
+        Message m1; // Assuming Message is the correct type for your stream
+        std::string full_message = msg[0]; // Assuming the first part is the full formatted message
 
-void writeMessagesToStream(const std::vector<std::vector<std::string>>& msgs, 
-                          ServerReaderWriter<Message, Message> *stream) {
-  for (const auto& msg : msgs) {
-      Message m1; // Assuming Message is the correct type for your stream
-      std::string full_message = msg[0]; // Assuming the first part is the full formatted message
-
-      // Find the position of " >> "
-      std::size_t pos = full_message.find(" >> ");
-      if (pos != std::string::npos) {
-          std::string user_info = full_message.substr(0, pos); // Get the user info
-          std::string message_text = full_message.substr(pos + 4); // Get the actual message
-          
-          // Extract the username from user_info
-          std::size_t username_end = user_info.find(" (");
-          std::string username = user_info.substr(0, username_end);
-          
-          m1.set_username(username); // Set the username
-          m1.set_msg(message_text); // Set the message text
-          stream->Write(m1); // Write the message to the stream
-      }
+        // Find the position of " >> "
+        std::size_t pos = full_message.find(" >> ");
+        if (pos != std::string::npos) {
+            std::string user_info = full_message.substr(0, pos); // Get the user info
+            std::string message_text = full_message.substr(pos + 4); // Get the actual message
+            
+            // Extract the username from user_info
+            std::size_t username_end = user_info.find(" (");
+            std::string username = user_info.substr(0, username_end);
+            
+            m1.set_username(username); // Set the username
+            m1.set_msg(message_text); // Set the message text
+            stream->Write(m1); // Write the message to the stream
+        }
+    }
   }
-}
 
-void createTimeline(const std::string& username) {
-  // Open the file in append mode
-  std::ofstream outfile(username + "_timeline.txt", std::ios::app);
-  if (outfile.is_open()) {
-      // Close the file when done
-      outfile.close();
-      std::cout << "Success: Timeline file created for user '" << username << "'." << std::endl;
-  } else {
-      std::cerr << "Error: Failed to open timeline file for user '" << username << "'." << std::endl;
-  }
-}
+    void createTimeline(const std::string& username) {
+        // Open the file in append mode
+        std::ofstream outfile(username + "_timeline.txt", std::ios::app);
+        if (outfile.is_open()) {
+            // Close the file when done
+            outfile.close();
+            std::cout << "Success: Timeline file created for user '" << username << "'." << std::endl;
+        } else {
+            std::cerr << "Error: Failed to open timeline file for user '" << username << "'." << std::endl;
+        }
+    }
+	
+   Message MakeMessage(const std::string &username, const std::string &msg) {
+	Message m;
+	m.set_username(username);
+	m.set_msg(msg);
+	google::protobuf::Timestamp *timestamp = new google::protobuf::Timestamp();
+	timestamp->set_seconds(time(NULL));
+	timestamp->set_nanos(0);
+	m.set_allocated_timestamp(timestamp);
+	return m;
+   }
 };
 
 void RunServer(std::string port_no) {
@@ -361,30 +382,6 @@ void RunServer(std::string port_no) {
   server->Wait();
 }
 
-void clearTimelineFilesInCurrentDirectory() {
-    DIR* dir = opendir(".");
-    if (dir == nullptr) {
-        std::cerr << "Could not clear Timeline, please restart." << std::endl;
-        return;
-    }
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != nullptr) {
-        std::string filename = entry->d_name;
-
-        // Check if the file ends with "_timeline.txt"
-        if (filename.size() >= 13 && filename.compare(filename.size() - 13, 13, "_timeline.txt") == 0) {
-            if (std::remove(filename.c_str()) == 0) {
-                std::cout << "Cleared file: " << filename << std::endl;
-            } else {
-                std::cerr << "Failed to remove file: " << filename << std::endl;
-            }
-        }
-    }
-
-    closedir(dir);
-}
-
-
 int main(int argc, char** argv) {
 
   std::string port = "3010";
@@ -398,7 +395,7 @@ int main(int argc, char** argv) {
 	  std::cerr << "Invalid Command Line Argument\n";
     }
   }
-  clearTimelineFilesInCurrentDirectory();
+  
   std::string log_file_name = std::string("server-") + port;
   google::InitGoogleLogging(log_file_name.c_str());
   log(INFO, "Logging Initialized. Server starting...");
@@ -406,4 +403,3 @@ int main(int argc, char** argv) {
 
   return 0;
 }
-
