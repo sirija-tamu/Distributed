@@ -383,7 +383,7 @@ int main(int argc, char** argv) {
 
   std::string hostname = "localhost";
   std::string username = "default";
-  std::string port = "3013";
+  std::string port = "3010";
     
   int opt = 0;
   while ((opt = getopt(argc, argv, "h:u:p:")) != -1){

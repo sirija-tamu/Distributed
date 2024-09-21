@@ -249,7 +249,7 @@ class SNSServiceImpl final : public SNSService::Service {
           c->hasStreamed = true;
           // read 20 latest massages from file currentuser_timeline
           std::vector<std::vector<std::string>> msgs = get_last_20_messages(c, username);
-          for (int i=0; i <msgs.size();i++){
+          for (int i=msgs.size()-1; i >=0;i--){
               Message sending;
               sending.set_msg(msgs[i][0]);
               sending.set_username(c->username);
@@ -312,19 +312,21 @@ class SNSServiceImpl final : public SNSService::Service {
     std::string line;
     while (std::getline(inFile, line)) {
 	// Find the position of the first space
-        std::size_t space_pos = line.find(' ');
+        //std::size_t space_pos = line.find('(');
         // Extract the username
-        std::string username = line.substr(0, space_pos);
-        for (Client* follower : c->client_followers) {
-            if (follower->username == username) {
+        //std::string username2 = line.substr(0, space_pos-1);
+        //std::cout << "Fetching client" << username2 << "." << std::endl;
+        //Client* user = getClient(username2);
+        //for (Client* follower : user->client_followers) {
+            //if (follower->username == username) {
 	      messages.push_back({line}); // Store the entire line as a single element vector
 	      // Keep only the last 20 messages
 	      if (messages.size() > 20) {
 	        messages.erase(messages.begin()); // Remove the oldest message
 	      }
-	    }
-	    break;
-        }
+	    //}
+	    //break;
+        //}
     }
     inFile.close();
     return messages; 
@@ -404,7 +406,7 @@ void clearTimelineFilesInCurrentDirectory() {
 
 int main(int argc, char** argv) {
 
-  std::string port = "3013";
+  std::string port = "3010";
   
   int opt = 0;
   while ((opt = getopt(argc, argv, "p:")) != -1){
