@@ -326,7 +326,7 @@ bool exists(std::string coordinatorAddress){
     std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);    
     
     grpc::ClientContext context;
-    Status status;
+    csce662::Status status;
 
     grpc::Status rpc_status = stub->exists(&context, serverInfo, &status);
 
