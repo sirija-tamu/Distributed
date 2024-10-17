@@ -87,7 +87,7 @@ class CoordServiceImpl final : public CoordService::Service {
         int clusterID = std::stoi(serverinfo->clusterid());
 
         // Check if the cluster ID exists in the routing table
-        if (clusters.find(clusterID) == clusters.end()) {
+        if (clusterID < 1 || clusterID > clusters.size()) {
             confirmation->set_status(false);
             log(ERROR, "Invalid cluster ID: " + std::to_string(clusterID));
             
@@ -99,15 +99,15 @@ class CoordServiceImpl final : public CoordService::Service {
         zNode& znode = clusters[clusterID][0];
 
         // Update server information in the zNode
-        znode.serverID = serverinfo->serverid();
-        znode.port = serverinfo->port();
-        znode.type = serverinfo->type();
+        znode->serverID = serverinfo->serverid();
+        znode->port = serverinfo->port();
+        znode->type = serverinfo->type();
 
         // Simulate a delay for heartbeat processing
         std::this_thread::sleep_for(std::chrono::seconds(5));
 
         // Update the last heartbeat time
-        znode.last_heartbeat = getTimeNow();
+        znode->last_heartbeat = getTimeNow();
         
         log(INFO, "Received Heartbeat from ClusterID: " + std::to_string(clusterID) +
                   ", ServerID: " + std::to_string(serverinfo->serverid()));
