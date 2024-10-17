@@ -13,9 +13,9 @@ service CoordService{
     rpc GetServer (ID) returns (ServerInfo) {}
     // ZooKeeper API here
     // Create a path and place data in the znode
-    rpc create (PathAndData) returns (Status) {}
+    rpc create (ServerInfo) returns (Status) {}
     // Check if a path exists (checking if a Master is elected
-    rpc exists (Path) returns (Status) {}
+    rpc exists (ServerInfo) returns (Status) {}
 }
 
 //server info message definition
