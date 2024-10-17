@@ -352,7 +352,7 @@ void create(std::string coordinatorAddress){
     
     
     grpc::ClientContext context;
-    sce662::Status status;
+    csce662::Status status;
 
     grpc::Status rpc_status = stub->create(&context, serverInfo, &status);
 
