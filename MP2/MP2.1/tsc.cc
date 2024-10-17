@@ -387,7 +387,7 @@ int main(int argc, char** argv) {
       hostname = optarg;break;
     case 'u':
       username = optarg;break;
-    case 'p':
+    case 'k':
       port = optarg;break;
     default:
       std::cout << "Invalid Command Line Argument\n";

@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <google/protobuf/util/time_util.h>
 #include <grpc++/grpc++.h>
+#include<glog/logging.h>
 
 #include "coordinator.grpc.pb.h"
 #include "coordinator.pb.h"
@@ -39,6 +40,7 @@ using csce662::Confirmation;
 using csce662::ID;
 using csce662::ServerList;
 using csce662::SynchService;
+#define log(severity, msg) LOG(severity) << msg; google::FlushLogFiles(google::severity); 
 
 struct zNode{
     int serverID;
@@ -81,7 +83,38 @@ bool zNode::isActive(){
 class CoordServiceImpl final : public CoordService::Service {
 
     Status Heartbeat(ServerContext* context, const ServerInfo* serverinfo, Confirmation* confirmation) override {
-        // Your code here
+        // Convert cluster ID from string to integer
+        int clusterID = std::stoi(serverinfo->clusterid());
+
+        // Check if the cluster ID exists in the routing table
+        if (clusters.find(clusterID) == clusters.end()) {
+            confirmation->set_status(false);
+            log(ERROR, "Invalid cluster ID: " + std::to_string(clusterID));
+            
+            return grpc::Status(grpc::StatusCode::NOT_FOUND, 
+                                "Cluster ID " + std::to_string(serverinfo->serverid()) + " not found");
+        }
+
+        // Get a reference to the first zNode in the cluster
+        zNode& znode = clusters[clusterID][0];
+
+        // Update server information in the zNode
+        znode.serverID = serverinfo->serverid();
+        znode.port = serverinfo->port();
+        znode.type = serverinfo->type();
+
+        // Simulate a delay for heartbeat processing
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+
+        // Update the last heartbeat time
+        znode.last_heartbeat = getTimeNow();
+        
+        log(INFO, "Received Heartbeat from ClusterID: " + std::to_string(clusterID) +
+                  ", ServerID: " + std::to_string(serverinfo->serverid()));
+        
+        // Acknowledge successful heartbeat processing
+        confirmation->set_status(true);
+
         return Status::OK;
     }
 
@@ -90,10 +123,36 @@ class CoordServiceImpl final : public CoordService::Service {
     //hardcoded to represent this.
     Status GetServer(ServerContext* context, const ID* id, ServerInfo* serverinfo) override {
         // Your code here
-        return Status::OK;
+        std::cout << "Received request for clientID: " << id->id() << std::endl;
+
+        // Calculate the clusterID based on the client ID
+        int clusterID = (id->id() - 1) % 3 + 1;
+
+        // Check if the clusterID exists in the routing table (clusters map)
+        if (clusters.find(clusterID) != clusters.end()) {
+            const std::vector<zNode>& cluster = clusters[clusterID];  // Get the cluster nodes
+
+            // Look for the first active server in the cluster
+            for (const auto& node : cluster) {
+                if (node.isActive()) {
+                    // Populate server information for the active server
+                    serverInfo->set_serverid(node.serverID);
+                    serverInfo->set_hostname(node.hostname);
+                    serverInfo->set_port(node.port);
+                    serverInfo->set_type(node.type);
+
+                    std::cout << "Assigned server: " << node.serverID << " from cluster " << clusterID << std::endl;
+                    return Status::OK;  // Return success if an active server is found
+                }
+            }
+
+            // No active server was found in the cluster
+            return grpc::Status(grpc::StatusCode::UNAVAILABLE, "No active server available in the cluster");
+        } else {
+            // Cluster information not found in the routing table
+            return grpc::Status(grpc::StatusCode::NOT_FOUND, "Cluster information not found in routing table");
+        } 
     }
-
-
 };
 
 void RunServer(std::string port_no){
@@ -112,7 +171,7 @@ void RunServer(std::string port_no){
     builder.RegisterService(&service);
     // Finally assemble the server.
     std::unique_ptr<Server> server(builder.BuildAndStart());
-    std::cout << "Server listening on " << server_address << std::endl;
+    std::cout << "Coordinator listening on " << server_address << std::endl;
 
     // Wait for the server to shutdown. Note that some other thread must be
     // responsible for shutting down the server for this call to ever return.
@@ -121,7 +180,7 @@ void RunServer(std::string port_no){
 
 int main(int argc, char** argv) {
 
-    std::string port = "3010";
+    std::string port = "9090";
     int opt = 0;
     while ((opt = getopt(argc, argv, "p:")) != -1){
         switch(opt) {
@@ -132,6 +191,9 @@ int main(int argc, char** argv) {
                 std::cerr << "Invalid Command Line Argument\n";
         }
     }
+    std::string log_file_name = std::string("coordinator-port-") + port;  
+    google::InitGoogleLogging(log_file_name.c_str());
+
     RunServer(port);
     return 0;
 }
