@@ -352,9 +352,9 @@ void create(std::string coordinatorAddress){
     
     
     grpc::ClientContext context;
-    Status status;
+    sce662::Status status;
 
-    grpc::Status status = stub->create(&context, serverInfo, &status);
+    grpc::Status rpc_status = stub->create(&context, serverInfo, &status);
 
     if(status.status() == true){
       log(INFO,"Server Creation Successful!\n");
