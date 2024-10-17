@@ -282,11 +282,11 @@ void sendHeartbeat(const std::string& coordinatorAddress) {
     std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(coordinatorAddress, grpc::InsecureChannelCredentials());
     
     // Create a stub for the coordinator service.
-    std::unique_ptr<csce438::CoordService::Stub> stub = csce438::CoordService::NewStub(channel);    
+    std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);    
     
     // Make the RPC call to the Heartbeat function.
     grpc::ClientContext context;
-    csce438::Confirmation confirmation;
+    csce662::Confirmation confirmation;
 
         grpc::Status status = stub->Heartbeat(&context, serverInfo, &confirmation);
         
@@ -323,7 +323,7 @@ bool exists(std::string coordinatorAddress){
     std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(coordinatorAddress, grpc::InsecureChannelCredentials());
     
     // Create a stub for the coordinator service.
-    std::unique_ptr<csce438::CoordService::Stub> stub = csce438::CoordService::NewStub(channel);    
+    std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);    
     
     grpc::ClientContext context;
     PathStatus pathstatus;
@@ -348,7 +348,7 @@ void create(std::string coordinatorAddress){
     std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(coordinatorAddress, grpc::InsecureChannelCredentials());
     
     // Create a stub for the coordinator service.
-    std::unique_ptr<csce438::CoordService::Stub> stub = csce438::CoordService::NewStub(channel);    
+    std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);    
     
     
     grpc::ClientContext context;

@@ -374,7 +374,7 @@ void getServer(std::string username,std::string coordinator_Address){
   std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(coordinator_Address, grpc::InsecureChannelCredentials());
   
   // Create a stub for the coordinator service.
-  std::unique_ptr<csce438::CoordService::Stub> stub = csce438::CoordService::NewStub(channel);    
+  std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);    
   
   // Make the RPC call.
   grpc::ClientContext context;
