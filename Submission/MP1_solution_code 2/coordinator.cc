@@ -45,7 +45,6 @@ using csce662::ServerList;
 using csce662::SynchService;
 using csce662::Path;
 using csce662::PathAndData;
-using csce662::Status;
 
 struct zNode{
     int serverID;
@@ -165,7 +164,7 @@ class CoordServiceImpl final : public CoordService::Service {
   }
 
   //Function to check if zNode exists in the cluster
-  Status exists(ServerContext* context, const ServerInfo* serverinfo, Status* status){
+  Status exists(ServerContext* context, const ServerInfo* serverinfo, csce662::Status* status){
 
     int clusterID = serverinfo->clusterid();
     int serverID = serverinfo->serverid();
@@ -204,7 +203,7 @@ class CoordServiceImpl final : public CoordService::Service {
   }
 
   //Creating a zNode in the cluster
-  Status create(ServerContext* context, const ServerInfo* serverinfo, Status* status){
+  Status create(ServerContext* context, const ServerInfo* serverinfo, csce662::Status* status){
     
     int clusterID = serverinfo->clusterid();
     int serverID = serverinfo->serverid();
