@@ -328,7 +328,7 @@ bool exists(std::string coordinatorAddress){
     grpc::ClientContext context;
     Status status;
 
-    grpc::Status status = stub->exists(&context, serverInfo, &status);
+    grpc::Status rpc_status = stub->exists(&context, serverInfo, &status);
 
     if(status.status() == true){
       log(INFO,"Server Exists in the cluster!\n");
