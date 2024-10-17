@@ -71,7 +71,6 @@ using std::string;
 using csce662::CoordService;
 using csce662::Confirmation;
 using csce662::ServerInfo;
-using csce662::Status;
 
 
 
