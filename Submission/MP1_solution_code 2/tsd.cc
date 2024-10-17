@@ -71,7 +71,7 @@ using std::string;
 using csce662::CoordService;
 using csce662::Confirmation;
 using csce662::ServerInfo;
-using csce662::PathStatus;
+using csce662::Status;
 
 
 
@@ -326,11 +326,11 @@ bool exists(std::string coordinatorAddress){
     std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);    
     
     grpc::ClientContext context;
-    PathStatus pathstatus;
+    Status status;
 
-    grpc::Status status = stub->exists(&context, serverInfo, &pathstatus);
+    grpc::Status status = stub->exists(&context, serverInfo, &status);
 
-    if(pathstatus.status() == true){
+    if(status.status() == true){
       log(INFO,"Server Exists in the cluster!\n");
     }
     else
@@ -338,7 +338,7 @@ bool exists(std::string coordinatorAddress){
       log(INFO,"Server doesnt exist in the cluster! Registering the server...\n");;
     }
 
-    return pathstatus.status();
+    return status.status();
 
 }
 
@@ -352,11 +352,11 @@ void create(std::string coordinatorAddress){
     
     
     grpc::ClientContext context;
-    PathStatus pathstatus;
+    Status status;
 
-    grpc::Status status = stub->create(&context, serverInfo, &pathstatus);
+    grpc::Status status = stub->create(&context, serverInfo, &status);
 
-    if(pathstatus.status() == true){
+    if(status.status() == true){
       log(INFO,"Server Creation Successful!\n");
     }
     else {

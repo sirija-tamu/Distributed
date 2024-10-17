@@ -45,7 +45,7 @@ using csce662::ServerList;
 using csce662::SynchService;
 using csce662::Path;
 using csce662::PathAndData;
-using csce662::PathStatus;
+using csce662::Status;
 
 struct zNode{
     int serverID;
@@ -165,7 +165,7 @@ class CoordServiceImpl final : public CoordService::Service {
   }
 
   //Function to check if zNode exists in the cluster
-  Status exists(ServerContext* context, const ServerInfo* serverinfo, PathStatus* pathStatus){
+  Status exists(ServerContext* context, const ServerInfo* serverinfo, Status* status){
 
     int clusterID = serverinfo->clusterid();
     int serverID = serverinfo->serverid();
@@ -181,7 +181,7 @@ class CoordServiceImpl final : public CoordService::Service {
 
     auto cluster_it = cluster.find(clusterID);
 
-    pathStatus->set_status(false);
+    status->set_status(false);
     
     if (cluster_it != cluster.end()) {
         // The clusterID exists in the map
@@ -192,7 +192,7 @@ class CoordServiceImpl final : public CoordService::Service {
         for (const zNode& node : nodes) {
             if (node.serverID == serverID) {
                 serverFound = true;
-                pathStatus->set_status(true);
+                status->set_status(true);
                 return Status::OK;
             }
         }
@@ -204,7 +204,7 @@ class CoordServiceImpl final : public CoordService::Service {
   }
 
   //Creating a zNode in the cluster
-  Status create(ServerContext* context, const ServerInfo* serverinfo, PathStatus* pathStatus){
+  Status create(ServerContext* context, const ServerInfo* serverinfo, Status* status){
     
     int clusterID = serverinfo->clusterid();
     int serverID = serverinfo->serverid();
@@ -229,7 +229,7 @@ class CoordServiceImpl final : public CoordService::Service {
         for (const zNode& node : nodes) {
             if (node.serverID == serverID) {
                 serverFound = true;
-                pathStatus->set_status(true);
+                status->set_status(true);
                 return Status::OK;
                 break; // You can stop searching once you find a matching serverID
             }
@@ -241,7 +241,7 @@ class CoordServiceImpl final : public CoordService::Service {
 
             //std::cout << "Server " << serverID << " exists in Cluster " << clusterID << "." << std::endl;
         } else {
-            pathStatus->set_status(false);
+            status->set_status(false);
             nodes.push_back(znode);
         }
     } else {
@@ -263,7 +263,7 @@ class CoordServiceImpl final : public CoordService::Service {
         //std::cout << "Server " << serverID << " added to Cluster " << clusterID << "." << std::endl;
     }
 
-    pathStatus->set_status(true);
+    status->set_status(true);
 
     return Status::OK;
   }
