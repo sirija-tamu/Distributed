@@ -107,7 +107,7 @@ int Client::connectTo()
     }
 
     // Update login info with the server's hostname and port
-    login_info = serverInfoResponse.hostname() + ":" + serverInfoResponse.port();
+    std::string login_info = serverInfoResponse.hostname() + ":" + serverInfoResponse.port();
 
     stub_ = std::unique_ptr<SNSService::Stub>(SNSService::NewStub(
 			       grpc::CreateChannel(
