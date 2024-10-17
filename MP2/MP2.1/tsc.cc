@@ -7,7 +7,7 @@
 #include <csignal>
 #include <grpc++/grpc++.h>
 #include "client.h"
-
+#include "coordinator.grpc.pb.h"
 #include "sns.grpc.pb.h"
 using grpc::Channel;
 using grpc::ClientContext;
@@ -20,6 +20,10 @@ using csce662::ListReply;
 using csce662::Request;
 using csce662::Reply;
 using csce662::SNSService;
+using csce662::CoordService;
+using csce662::ServerInfo;
+using csce662::Confirmation;
+using csce662::ID;
 
 void sig_ignore(int sig) {
   std::cout << "Signal caught " + sig;
@@ -59,7 +63,7 @@ private:
   // You can have an instance of the client stub
   // as a member variable.
   std::unique_ptr<SNSService::Stub> stub_;
-  
+  std::unique_ptr<CoordService::Stub> coordinatorStub;
   IReply Login();
   IReply List();
   IReply Follow(const std::string &username);
@@ -73,16 +77,38 @@ private:
 //////////////////////////////////////////////////////////
 int Client::connectTo()
 {
-  // ------------------------------------------------------------
-  // In this function, you are supposed to create a stub so that
-  // you call service methods in the processCommand/porcessTimeline
-  // functions. That is, the stub should be accessible when you want
-  // to call any service methods in those functions.
-  // I recommend you to have the stub as
-  // a member variable in your own Client class.
-  // Please refer to gRpc tutorial how to create a stub.
-  // ------------------------------------------------------------
-  std::string login_info = hostname + ":" + port;
+    // ------------------------------------------------------------
+    // In this function, you are supposed to create a stub so that
+    // you call service methods in the processCommand/porcessTimeline
+    // functions. That is, the stub should be accessible when you want
+    // to call any service methods in those functions.
+    // I recommend you to have the stub as
+    // a member variable in your own Client class.
+    // Please refer to gRpc tutorial how to create a stub.
+    // ------------------------------------------------------------
+    std::string coordinator_address = hostname + ":" + port;
+    // Create coordinator stub for gRPC communication
+    coordinatorStub = CoordService::NewStub(grpc::CreateChannel(
+          coordinator_address, grpc::InsecureChannelCredentials()
+        ));
+
+    // Prepare client context and request/response objects
+    grpc::ClientContext clientContext;
+    ServerInfo serverInfoResponse;
+    ID clientID;
+    clientID.set_id(atoi(username.c_str())); // Convert and set client ID
+
+    // Call GetServer method and fetch server info
+    grpc::Status status = coordinatorStub->GetServer(&clientContext, clientID, &serverInfoResponse);
+
+    // Check if gRPC call was successful
+    if (!status.ok()) {
+        return -1;
+    }
+
+    // Update login info with the server's hostname and port
+    login_info = serverInfoResponse.hostname() + ":" + serverInfoResponse.port();
+
     stub_ = std::unique_ptr<SNSService::Stub>(SNSService::NewStub(
 			       grpc::CreateChannel(
 			      login_info, grpc::InsecureChannelCredentials())));
@@ -166,6 +192,12 @@ IReply Client::processCommand(std::string& input)
     if (input == "LIST") {
       return List();
     } else if (input == "TIMELINE") {
+      IReply tmpre = List();
+      // If the server is down, we want the grpc status to not be OK
+      if (!tmpre.grpc_status.ok()){
+        ire.comm_status = FAILURE_UNKNOWN;
+        return ire;
+      }
       ire.comm_status = SUCCESS;
       return ire;
     }
