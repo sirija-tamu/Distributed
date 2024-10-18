@@ -97,7 +97,7 @@ int Client::connectTo()
     ClientContext clientContext;
     ServerInfo serverInfo;
     ID id;
-    id.set_id(atoi(uid.c_str()));
+    id.set_id(atoi(username.c_str()));
     grpc::Status grpcStatus = coordStub->GetServer(&clientContext,id,&serverInfo);
     if (!grpcStatus.ok()) {
       return -1;
@@ -186,7 +186,7 @@ IReply Client::processCommand(std::string& input)
 
       IReply tryLogin = Login();
       if(tryLogin.comm_status == FAILURE_ALREADY_EXISTS || tryLogin.comm_status == SUCCESS)
-        tryLogin.comm_status = SUCCESS;
+        ire.comm_status = SUCCESS;
       else {
         return tryLogin;
       }
