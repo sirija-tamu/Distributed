@@ -42,6 +42,8 @@ void wait(float seconds) {
 int main() {
     // Kill existing tmux sessions if they exist
     kill_tmux_session("COORDINATOR");
+    kill_tmux_session("SERVER");
+    kill_tmux_session("CLIENT");
     kill_tmux_session("SERVER1");
     kill_tmux_session("SERVER2");
     kill_tmux_session("CLIENT1");
