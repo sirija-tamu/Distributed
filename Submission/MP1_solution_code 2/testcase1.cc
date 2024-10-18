@@ -28,46 +28,37 @@ void send_command_to_tmux(const std::string& session_name, const std::string& co
     system(send_command.c_str());
 }
 
+// Function to wait for a specified amount of seconds
+void wait(float seconds) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(seconds * 1000)));
+}
+
 int main() {
-    // Step 1: Kill existing tmux sessions if they exist
+    // Kill existing tmux sessions if they exist
     kill_tmux_session("COORDINATOR");
     kill_tmux_session("SERVER");
     kill_tmux_session("CLIENT");
 
-    // Step 2: CREATE - Create a tmux session for the coordinator
+    // Start COORDINATOR
     create_tmux_session("COORDINATOR");
-
-    // Step 3: OPEN - Open a terminal and attach it to the COORDINATOR session
     open_terminal_for_tmux("COORDINATOR");
-
-    // Step 4: SEND COMMAND - Execute the coordinator command
     send_command_to_tmux("COORDINATOR", "./coordinator -p 9090");
 
-    // Step 5: CREATE - Create a tmux session for the server (TSD)
+    // Start SERVER
     create_tmux_session("SERVER");
-
-    // Step 6: OPEN - Open a terminal and attach it to the SERVER session
     open_terminal_for_tmux("SERVER");
-
-    // Step 7: SEND COMMAND - Execute the server command
     send_command_to_tmux("SERVER", "./tsd -c 1 -s 1 -h localhost -k 9090 -p 10000");
 
-    // Wait a moment to allow the server to initialize
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    // 5 seconds heartbeat for server registration
+    wait(5);
 
-    // Step 8: CREATE - Create a tmux session for the client (TSC)
+    // start client
     create_tmux_session("CLIENT");
-
-    // Step 9: OPEN - Open a terminal and attach it to the CLIENT session
     open_terminal_for_tmux("CLIENT");
-
-    // Step 10: SEND COMMAND - Execute the client command
     send_command_to_tmux("CLIENT", "./tsc -h localhost -k 9090 -u 1");
 
-    // Step 11: SEND COMMAND - Send LIST command to the CLIENT session
+    // execute commands
     send_command_to_tmux("CLIENT", "LIST");
-
-    // Step 12: SEND COMMAND - Send TIMELINE command to the CLIENT session
     send_command_to_tmux("CLIENT", "TIMELINE");
 
     return 0;
