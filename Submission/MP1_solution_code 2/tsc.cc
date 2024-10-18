@@ -7,9 +7,8 @@
 #include <csignal>
 #include <grpc++/grpc++.h>
 #include "client.h"
-
-#include "sns.grpc.pb.h"
 #include "coordinator.grpc.pb.h"
+#include "sns.grpc.pb.h"
 #include<glog/logging.h>
 #define log(severity, msg) LOG(severity) << msg; google::FlushLogFiles(google::severity); 
 
@@ -29,10 +28,6 @@ using csce662::Confirmation;
 using csce662::ServerInfo;
 using csce662::ID;
 
-
-void sig_ignore(int sig) {
-  std::cout << "Signal caught " + sig;
-}
 
 Message MakeMessage(const std::string& username, const std::string& msg) {
     Message m;
@@ -70,7 +65,8 @@ private:
   // You can have an instance of the client stub
   // as a member variable.
   std::unique_ptr<SNSService::Stub> stub_;
-  
+  std::unique_ptr<CoordService::Stub> coordStub;
+
   IReply Login();
   IReply List();
   IReply Follow(const std::string &username);
@@ -93,7 +89,22 @@ int Client::connectTo()
   // a member variable in your own Client class.
   // Please refer to gRpc tutorial how to create a stub.
   // ------------------------------------------------------------
-  std::string login_info = hostname + ":" + port;
+    std::string login_info = hostname + ":" + port;
+    coordStub = CoordService::NewStub(grpc::CreateChannel(
+          login_info, grpc::InsecureChannelCredentials()
+        ));
+
+    ClientContext clientContext;
+    ServerInfo serverInfo;
+    ID id;
+    id.set_id(atoi(uid.c_str()));
+    grpc::Status grpcStatus = coordStub->GetServer(&clientContext,id,&serverInfo);
+    if (!grpcStatus.ok()) {
+      return -1;
+    }
+
+    login_info = serverInfo.hostname() + ":" + serverInfo.port();
+
     stub_ = std::unique_ptr<SNSService::Stub>(SNSService::NewStub(
 			       grpc::CreateChannel(
 			      login_info, grpc::InsecureChannelCredentials())));
@@ -154,20 +165,13 @@ IReply Client::processCommand(std::string& input)
   // "following_users" member variable of IReply.
   // ------------------------------------------------------------
 
-  connectTo();
 
   IReply ire;
   std::size_t index = input.find_first_of(" ");
   std::cout << "Processing "+input + ". ";
   if (index != std::string::npos) {
     std::string cmd = input.substr(0, index);
-    
-    /*
-      if (input.length() == index + 1) {
-      std::cout << "Invalid Input -- No Arguments Given\n";
-      }
-    */
-    
+        
     std::string argument = input.substr(index+1, (input.length()-index));
     
     if (cmd == "FOLLOW") {
@@ -180,17 +184,11 @@ IReply Client::processCommand(std::string& input)
       return List();
     } else if (input == "TIMELINE") {
 
-      IReply ire1;
-      
-      ire1.comm_status = FAILURE_INVALID;
-      
-      ire1 = Login();
-
-
-      if(ire1.comm_status == FAILURE_ALREADY_EXISTS || ire1.comm_status == SUCCESS)
-        ire.comm_status = SUCCESS;
+      IReply tryLogin = Login();
+      if(tryLogin.comm_status == FAILURE_ALREADY_EXISTS || tryLogin.comm_status == SUCCESS)
+        tryLogin.comm_status = SUCCESS;
       else {
-        return ire1;
+        return tryLogin;
       }
       
       return ire;
@@ -362,43 +360,6 @@ void Client::Timeline(const std::string& username) {
   reader.join();
 }
 
-//Function to get the clusterID and the server to which client will connect
-void getServer(std::string username,std::string coordinator_Address){
-
-  ServerInfo serverinfo;
-  ID id;
-
-  id.set_id(std::stoi(username));
-  
-
-  std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(coordinator_Address, grpc::InsecureChannelCredentials());
-  
-  // Create a stub for the coordinator service.
-  std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);    
-  
-  // Make the RPC call.
-  grpc::ClientContext context;
-
-  grpc::Status status = stub->GetServer(&context, id, &serverinfo);
-
-  if(serverinfo.hostname() == "Failure" || serverinfo.hostname() == "Server Inactive"){
-    
-    log(INFO,"Server Inactive\n");
-    
-    //std::cout<<"Server Inactive\n";
-
-  }
-
-  Client myc(serverinfo.hostname(), username, serverinfo.port());
-
-  myc.run();
-
-}
-
-//////////////////////////////////////////////
-// Main Function
-/////////////////////////////////////////////
-
 int main(int argc, char** argv) {
 
   std::string hostname = "localhost";
@@ -419,20 +380,11 @@ int main(int argc, char** argv) {
     }
   }
 
-  log(INFO,"Logging Initialized. Client: " + username + " starting...\n")
-      
-  //std::cout << "Logging Initialized. Client: "<<username<<" starting...\n";
+  std::cout << "Logging Initialized. Client starting...";
+  
+  Client myc(hostname, username, port);
 
-  std::string coordinator_Address = hostname + ":" + port;
-
-  getServer(username,coordinator_Address);
-  
-  //Client myc(hostname, username, port);
-  
-  //for(int i = 1; i <= 31; i++) 
-  //  signal(i, sig_ignore);
-  
-  //myc.run();
+  myc.run();
   
   return 0;
 }
