@@ -28,6 +28,9 @@ using csce662::Confirmation;
 using csce662::ServerInfo;
 using csce662::ID;
 
+void sig_ignore(int sig) {
+  std::cout << "Signal caught " + sig;
+}
 
 Message MakeMessage(const std::string& username, const std::string& msg) {
     Message m;
@@ -90,19 +93,26 @@ int Client::connectTo()
   // Please refer to gRpc tutorial how to create a stub.
   // ------------------------------------------------------------
     std::string login_info = hostname + ":" + port;
+    // Create a new stub for the Coordinator service
     coordStub = CoordService::NewStub(grpc::CreateChannel(
           login_info, grpc::InsecureChannelCredentials()
         ));
 
+    // Initialize ClientContext, ServerInfo and ID for RPC settings
     ClientContext clientContext;
     ServerInfo serverInfo;
     ID id;
     id.set_id(atoi(username.c_str()));
-    grpc::Status grpcStatus = coordStub->GetServer(&clientContext,id,&serverInfo);
+
+    // Call GetServer to fetch server info
+    grpc::Status grpcStatus = coordStub->GetServer(&clientContext, id, &serverInfo);
+
+    // Check for gRPC call success
     if (!grpcStatus.ok()) {
-      return -1;
+        return -1; // Return error code if failed
     }
 
+    // Update login_info with the server's hostname and port
     login_info = serverInfo.hostname() + ":" + serverInfo.port();
 
     stub_ = std::unique_ptr<SNSService::Stub>(SNSService::NewStub(
@@ -165,13 +175,18 @@ IReply Client::processCommand(std::string& input)
   // "following_users" member variable of IReply.
   // ------------------------------------------------------------
 
-
   IReply ire;
   std::size_t index = input.find_first_of(" ");
   std::cout << "Processing "+input + ". ";
   if (index != std::string::npos) {
     std::string cmd = input.substr(0, index);
-        
+    
+    /*
+      if (input.length() == index + 1) {
+      std::cout << "Invalid Input -- No Arguments Given\n";
+      }
+    */
+    
     std::string argument = input.substr(index+1, (input.length()-index));
     
     if (cmd == "FOLLOW") {
@@ -183,8 +198,9 @@ IReply Client::processCommand(std::string& input)
     if (input == "LIST") {
       return List();
     } else if (input == "TIMELINE") {
-
+      // Try to login
       IReply tryLogin = Login();
+      // If it doesn't fail, set status to sucess
       if(tryLogin.comm_status == FAILURE_ALREADY_EXISTS || tryLogin.comm_status == SUCCESS)
         ire.comm_status = SUCCESS;
       else {
@@ -360,6 +376,12 @@ void Client::Timeline(const std::string& username) {
   reader.join();
 }
 
+
+
+//////////////////////////////////////////////
+// Main Function
+/////////////////////////////////////////////
+
 int main(int argc, char** argv) {
 
   std::string hostname = "localhost";
@@ -379,11 +401,14 @@ int main(int argc, char** argv) {
       std::cout << "Invalid Command Line Argument\n";
     }
   }
-
+      
   std::cout << "Logging Initialized. Client starting...";
   
   Client myc(hostname, username, port);
-
+  
+  //for(int i = 1; i <= 31; i++) 
+  //  signal(i, sig_ignore);
+  
   myc.run();
   
   return 0;
