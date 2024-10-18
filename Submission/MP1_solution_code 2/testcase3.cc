@@ -4,10 +4,34 @@
 #include <thread>
 #include <chrono>
 
-// Function to open a new terminal and execute the given command
-void open_terminal(const std::string& description, const std::string& command) {
-    std::string terminal_command = "gnome-terminal -- bash -c 'echo \"" + description + "\" && " + command + "; exec bash'";
+// Function to kill a tmux session if it already exists
+void kill_tmux_session(const std::string& session_name) {
+    std::string kill_command = "tmux kill-session -t " + session_name + " 2>/dev/null";
+    system(kill_command.c_str());
+}
+
+// Function to create a tmux session
+void create_tmux_session(const std::string& session_name) {
+    std::string tmux_command = "tmux new-session -d -s " + session_name;
+    system(tmux_command.c_str());
+}
+
+// Function to open a terminal and attach it to the tmux session
+void open_terminal_for_tmux(const std::string& session_name) {
+    std::string terminal_command = "gnome-terminal -- tmux attach -t " + session_name;
     system(terminal_command.c_str());
+}
+
+// Function to send a command to a tmux session
+void send_command_to_tmux(const std::string& session_name, const std::string& command) {
+    std::string send_command = "tmux send-keys -t " + session_name + " \"" + command + "\" C-m";
+    system(send_command.c_str());
+}
+
+// Function to simulate Ctrl+C to stop the server
+void kill_server(const std::string& session_name) {
+    std::string send_signal = "tmux send-keys -t " + session_name + " C-c";
+    system(send_signal.c_str());
 }
 
 // Function to wait for a specified amount of seconds
@@ -16,39 +40,60 @@ void wait(float seconds) {
 }
 
 int main() {
-    // Step 1: Start the coordinator
-    open_terminal("STARTING COORDINATOR", "./coordinator -p 9090");
+    // Kill existing tmux sessions if they exist
+    kill_tmux_session("COORDINATOR");
+    kill_tmux_session("SERVER1");
+    kill_tmux_session("SERVER2");
+    kill_tmux_session("CLIENT1");
+    kill_tmux_session("CLIENT2");
+
+    // Start COORDINATOR
+    create_tmux_session("COORDINATOR");
+    open_terminal_for_tmux("COORDINATOR");
+    send_command_to_tmux("COORDINATOR", "./coordinator -p 9090");
+
+    // Start SERVER 1 and 2
+    create_tmux_session("SERVER1");
+    open_terminal_for_tmux("SERVER1");
+    send_command_to_tmux("SERVER1", "./tsd -c 1 -s 1 -h localhost -k 9090 -p 10000");
+    create_tmux_session("SERVER2");
+    open_terminal_for_tmux("SERVER2");
+    send_command_to_tmux("SERVER2", "./tsd -c 2 -s 2 -h localhost -k 9090 -p 10001");
+
+    // 5 seconds heartbeat for server registration
+    wait(5);
+
+    // Start CLIENT 1 and 2
+    create_tmux_session("CLIENT1");
+    open_terminal_for_tmux("CLIENT1");
+    send_command_to_tmux("CLIENT1", "./tsc -h localhost -k 9090 -u 1");
+    create_tmux_session("CLIENT2");
+    open_terminal_for_tmux("CLIENT2");
+    send_command_to_tmux("CLIENT2", "./tsc -h localhost -k 9090 -u 2");
+
+    // kill Server 2
+    kill_server("SERVER2");
     wait(1);
+    send_command_to_tmux("CLIENT2", "LIST");
+    send_command_to_tmux("CLIENT2", "TIMELINE");
 
-    // Step 2: Start Server 1
-    open_terminal("STARTING SERVER 1", "./tsd -c 1 -s 1 -h localhost -k 9090 -p 10000");
+    // 5 seconds heart beat
+    wait(4);
+    send_command_to_tmux("CLIENT1", "LIST");
+    send_command_to_tmux("CLIENT1", "TIMELINE");
+    send_command_to_tmux("CLIENT2", "LIST");
+    send_command_to_tmux("CLIENT2", "TIMELINE");
 
-    // Step 3: Start Server 2
-    open_terminal("STARTING SERVER 2", "./tsd -c 2 -s 2 -h localhost -k 9090 -p 10001");
+    // Start Server2 again
+    send_command_to_tmux("SERVER2", "./tsd -c 2 -s 2 -h localhost -k 9090 -p 10001");
+
+    // 5 seconds heartbeat for server registration
     wait(5);
+    kill_server("CLIENT2");
+    send_command_to_tmux("CLIENT2", "./tsc -h localhost -k 9090 -u 2");
+    // execute commands
+    send_command_to_tmux("CLIENT2", "LIST");
+    send_command_to_tmux("CLIENT2", "TIMELINE");
 
-    // Step 4: Start Client 1
-    open_terminal("STARTING CLIENT 1", "./tsc -h localhost -k 9090 -u 1");
-
-    // Step 5: Start Client 2
-    open_terminal("STARTING CLIENT 2", "./tsc -h localhost -k 9090 -u 2");
-    wait(0.2);
-
-    // Step 6: Kill Server 2
-    system("pkill -f './tsd -c 2 -s 2 -h localhost -k 9090 -p 10001'");
-    wait(1);
-    //list timeline c2
-    wait(5);
-    //list timeline c1
-    //list timeline c2
-
-    // Step 7: Restart Server 2
-    open_terminal("RESTARTING SERVER 2", "./tsd -c 2 -s 2 -h localhost -k 9090 -p 1051");
-    wait(5);
-
-    // Step 8: Kill Server 2
-    system("pkill -f './tsc -h localhost -k 9090 -u 2'");
-    // Restart
-    open_terminal("STARTING CLIENT 2", "./tsc -h localhost -k 9090 -u 2");
     return 0;
 }
