@@ -49,6 +49,7 @@ int main() {
     create_tmux_session("COORDINATOR");
     open_terminal_for_tmux("COORDINATOR");
     send_command_to_tmux("COORDINATOR", "./coordinator -p 9090");
+    wait(1);
 
     // Start SERVER
     create_tmux_session("SERVER");
@@ -78,7 +79,9 @@ int main() {
     wait(5);
     send_command_to_tmux("CLIENT", "./tsc -h localhost -k 9090 -u 1");
     // execute commands
+    wait(1);
     send_command_to_tmux("CLIENT", "LIST");
+    wait(1);
     send_command_to_tmux("CLIENT", "TIMELINE");
 
     return 0;

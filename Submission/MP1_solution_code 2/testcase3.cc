@@ -83,8 +83,11 @@ int main() {
     // 5 seconds heart beat
     wait(4);
     send_command_to_tmux("CLIENT1", "LIST");
+    wait(1);
     send_command_to_tmux("CLIENT1", "TIMELINE");
+    wait(1);
     send_command_to_tmux("CLIENT2", "LIST");
+    wait(1);
     send_command_to_tmux("CLIENT2", "TIMELINE");
 
     // Start Server2 again
@@ -95,7 +98,9 @@ int main() {
     kill_server("CLIENT2");
     send_command_to_tmux("CLIENT2", "./tsc -h localhost -k 9090 -u 2");
     // execute commands
+    wait(1);
     send_command_to_tmux("CLIENT2", "LIST");
+    wait(1);
     send_command_to_tmux("CLIENT2", "TIMELINE");
 
     return 0;
