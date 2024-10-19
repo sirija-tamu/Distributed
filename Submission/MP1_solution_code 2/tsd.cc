@@ -271,7 +271,6 @@ class SNSServiceImpl final : public SNSService::Service {
 // Function to send repeated heartbeats to the coordinator
 void sendHeartbeat(const std::string& coordinatorAddress) {
     bool isFirstTime = true;
-    log(INFO, "Here!");
 
     while (true) {
         // Establish gRPC channel to the coordinator
