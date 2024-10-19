@@ -48,18 +48,27 @@ int main() {
     kill_tmux_session("SERVER2");
     kill_tmux_session("CLIENT1");
     kill_tmux_session("CLIENT2");
+    wait(1);
 
     // Start COORDINATOR
     create_tmux_session("COORDINATOR");
+    wait(1);
     open_terminal_for_tmux("COORDINATOR");
+    wait(1);
     send_command_to_tmux("COORDINATOR", "./coordinator -p 9090");
+    wait(1);
 
     // Start SERVER 1 and 2
     create_tmux_session("SERVER1");
+    wait(1);
     open_terminal_for_tmux("SERVER1");
+    wait(1);
     send_command_to_tmux("SERVER1", "./tsd -c 1 -s 1 -h localhost -k 9090 -p 10000");
+    wait(1);
     create_tmux_session("SERVER2");
+    wait(1);
     open_terminal_for_tmux("SERVER2");
+    wait(1);
     send_command_to_tmux("SERVER2", "./tsd -c 2 -s 2 -h localhost -k 9090 -p 10001");
 
     // 5 seconds heartbeat for server registration
@@ -67,10 +76,15 @@ int main() {
 
     // Start CLIENT 1 and 2
     create_tmux_session("CLIENT1");
+    wait(1);
     open_terminal_for_tmux("CLIENT1");
+    wait(1);
     send_command_to_tmux("CLIENT1", "./tsc -h localhost -k 9090 -u 1");
+    wait(1);
     create_tmux_session("CLIENT2");
+    wait(1);
     open_terminal_for_tmux("CLIENT2");
+    wait(1);
     send_command_to_tmux("CLIENT2", "./tsc -h localhost -k 9090 -u 2");
     wait(2);
     
@@ -78,6 +92,7 @@ int main() {
     kill_server("SERVER2");
     wait(1);
     send_command_to_tmux("CLIENT2", "LIST");
+    wait(1);
     send_command_to_tmux("CLIENT2", "TIMELINE");
 
     // 5 seconds heart beat
@@ -89,6 +104,7 @@ int main() {
     send_command_to_tmux("CLIENT2", "LIST");
     wait(1);
     send_command_to_tmux("CLIENT2", "TIMELINE");
+    wait(1);
 
     // Start Server2 again
     send_command_to_tmux("SERVER2", "./tsd -c 2 -s 2 -h localhost -k 9090 -p 10001");
@@ -96,12 +112,14 @@ int main() {
     // 5 seconds heartbeat for server registration
     wait(5);
     kill_server("CLIENT2");
+    wait(1);
     send_command_to_tmux("CLIENT2", "./tsc -h localhost -k 9090 -u 2");
     // execute commands
     wait(1);
     send_command_to_tmux("CLIENT2", "LIST");
     wait(1);
     send_command_to_tmux("CLIENT2", "TIMELINE");
+    wait(1);
 
     return 0;
 }

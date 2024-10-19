@@ -38,16 +38,21 @@ int main() {
     kill_tmux_session("COORDINATOR");
     kill_tmux_session("SERVER");
     kill_tmux_session("CLIENT");
+    wait(1);
 
     // Start COORDINATOR
     create_tmux_session("COORDINATOR");
+    wait(1);
     open_terminal_for_tmux("COORDINATOR");
+    wait(1);
     send_command_to_tmux("COORDINATOR", "./coordinator -p 9090");
     wait(1);
 
     // Start SERVER
     create_tmux_session("SERVER");
+    wait(1);
     open_terminal_for_tmux("SERVER");
+    wait(1);
     send_command_to_tmux("SERVER", "./tsd -c 1 -s 1 -h localhost -k 9090 -p 10000");
 
     // 5 seconds heartbeat for server registration
@@ -55,7 +60,9 @@ int main() {
 
     // start client
     create_tmux_session("CLIENT");
+    wait(1);
     open_terminal_for_tmux("CLIENT");
+    wait(1);
     send_command_to_tmux("CLIENT", "./tsc -h localhost -k 9090 -u 1");
     wait(1);
     
