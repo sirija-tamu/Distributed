@@ -67,10 +67,10 @@ using csce662::ListReply;
 using csce662::Request;
 using csce662::Reply;
 using csce662::SNSService;
-using std::string;
 using csce662::CoordService;
 using csce662::Confirmation;
 using csce662::ServerInfo;
+using std::string;
 
 
 
@@ -268,187 +268,123 @@ class SNSServiceImpl final : public SNSService::Service {
   }
 
 };
-
-//Sending repeated heartbeat to the coordinator
+// Function to send repeated heartbeats to the coordinator
 void sendHeartbeat(const std::string& coordinatorAddress) {
-    // Create a gRPC channel to the coordinator.
+    bool isFirstTime = true;
 
-   
-   int first_time = 0;
+    while (true) {
+        // Establish gRPC channel to the coordinator
+        std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(coordinatorAddress, grpc::InsecureChannelCredentials());
+        std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);
 
-   while(true){
-
-    std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(coordinatorAddress, grpc::InsecureChannelCredentials());
-    
-    // Create a stub for the coordinator service.
-    std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);    
-    
-    // Make the RPC call to the Heartbeat function.
-    grpc::ClientContext context;
-    csce662::Confirmation confirmation;
-
+        // Prepare the RPC call to the Heartbeat function
+        grpc::ClientContext context;
+        csce662::Confirmation confirmation;
         grpc::Status status = stub->Heartbeat(&context, serverInfo, &confirmation);
-        
+
         if (status.ok()) {
-            // Handle successful confirmation here if needed.
-
-            log(INFO,"Heartbeat sent successfully to the coordinator.\n");
-
-            //std::cout << "Heartbeat sent successfully to the coordinator." << std::endl;
+            log(INFO, "Heartbeat sent to coordinator.");
         } else {
-            // Handle RPC call failure here.
-
-            log(INFO,"Error sending heartbeat to the coordinator.\n");
-
-            //std::cerr << "Error sending heartbeat to the coordinator: " << status.error_message() << std::endl;
+            log(INFO, "Couldn't send heartbeat to coordinator");
         }
 
-        //First ever heartbeat for registration is for 5 seconds. After that, sending heartbeat every 10 seconds.
-        if(first_time == 0)
-        {
-          sleep(5);
-          first_time = 1;
-        }
-        else
-          sleep(10);
+        // Delay for the first heartbeat (5s) and subsequent heartbeats (10s)
+        sleep(isFirstTime ? 5 : 10);
+        isFirstTime = false;
     }
-
-
 }
 
-//Checking if zNode exists in the coordinator cluster
-bool exists(std::string coordinatorAddress){
-
+// Function to check if zNode exists in the coordinator cluster
+bool exists(const std::string& coordinatorAddress) {
     std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(coordinatorAddress, grpc::InsecureChannelCredentials());
-    
-    // Create a stub for the coordinator service.
-    std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);    
-    
+    std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);
+
     grpc::ClientContext context;
     csce662::Status status;
+    grpc::Status rpcStatus = stub->exists(&context, serverInfo, &status);
 
-    grpc::Status rpc_status = stub->exists(&context, serverInfo, &status);
-
-    if(status.status() == true){
-      log(INFO,"Server Exists in the cluster!\n");
-    }
-    else
-    {
-      log(INFO,"Server doesnt exist in the cluster! Registering the server...\n");;
-    }
+    if (status.status()) {
+        log(INFO, "Server exists");
+    } 
 
     return status.status();
-
 }
 
-//Function to create zNode in the coordinator cluster
-void create(std::string coordinatorAddress){
-
+// Function to create zNode in the coordinator cluster
+void create(const std::string& coordinatorAddress) {
     std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(coordinatorAddress, grpc::InsecureChannelCredentials());
-    
-    // Create a stub for the coordinator service.
-    std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);    
-    
-    
+    std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);
+
     grpc::ClientContext context;
     csce662::Status status;
+    grpc::Status rpcStatus = stub->create(&context, serverInfo, &status);
 
-    grpc::Status rpc_status = stub->create(&context, serverInfo, &status);
-
-    if(status.status() == true){
-      log(INFO,"Server Creation Successful!\n");
-    }
-    else {
-      log(INFO,"Server Creation Unsuccessful!\n");
-      }
-
+    log(INFO, status.status() ? "Server creation successful." : "Server creation failed.");
 }
 
-void RunServer(int clusterID,int serverID,std::string coord_hostname,std::string coord_port,std::string port_no) {
+// Function to run the server
+void RunServer(int clusterID, int serverID, const std::string& coordHostname, const std::string& coordPort, const std::string& portNo) {
+    // Initialize server information
+    serverInfo.set_hostname("0.0.0.0");
+    serverInfo.set_port(portNo);
+    serverInfo.set_serverid(serverID);
+    serverInfo.set_clusterid(clusterID);
 
-  //Saving info in Serverinfo object to save in the coordinator cluster
-  serverInfo.set_hostname("0.0.0.0");
-  serverInfo.set_port(port_no);
-  serverInfo.set_serverid(serverID);
-  serverInfo.set_clusterid(clusterID);
+    std::string serverAddress = "0.0.0.0:" + portNo;
+    SNSServiceImpl service;
 
-  std::string server_address = "0.0.0.0:" +port_no;
-  SNSServiceImpl service;
+    ServerBuilder builder;
+    builder.AddListeningPort(serverAddress, grpc::InsecureServerCredentials());
+    builder.RegisterService(&service);
+    std::unique_ptr<Server> server(builder.BuildAndStart());
+    log(INFO, "Server listening on " + serverAddress);
 
-  ServerBuilder builder;
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-  builder.RegisterService(&service);
-  std::unique_ptr<Server> server(builder.BuildAndStart());
-  log(INFO, "Server listening on "+server_address);
+    std::string coordAddress = coordHostname + ":" + coordPort;
 
-  std::string coord_address = coord_hostname + ":" + coord_port;
+    // Check existence and create if necessary
+    if (!exists(coordAddress)) {
+        log(INFO, "Creating new Server as it doesn't exist");
+        create(coordAddress);
+    }
 
-  //Checking if server already exists in the cluster
-  bool exist = exists(coord_address);
+    // Start heartbeat thread
+    std::thread heartbeatThread(sendHeartbeat, coordAddress);
 
-  //If server doesnt exists in coordinator cluster, register the server
-  if(!exist)
-    create(coord_address);
-
-  //Thread to send repeated hearbeats
-  std::thread functionThread (sendHeartbeat,coord_address);
-  
-  server->Wait();
-
-  functionThread.join();
+    server->Wait();
+    heartbeatThread.join();
 }
 
 int main(int argc, char** argv) {
+    int clusterID = 0, serverID = 0;
+    std::string hostname, coordPort, portNo;
 
-  int cValue,sValue;
-  std::string hostname,port,pValue;
-
-  for (int i = 1; i < argc; i += 2) {
-      // Check for each option and its corresponding value
-      if (strcmp(argv[i], "-c") == 0) {
-          // Handle the -c option and its value (e.g., atoi(argv[i+1]) for integer)
-          cValue = std::atoi(argv[i + 1]);
-          //std::cout << "Option -c value: " << cValue << std::endl;
-      } else if (strcmp(argv[i], "-s") == 0) {
-          // Handle the -s option and its value
-          sValue = std::atoi(argv[i + 1]);
-          //std::cout << "Option -s value: " << sValue << std::endl;
-      } else if (strcmp(argv[i], "-h") == 0) {
-          // Handle the -h option and its value
-          hostname = argv[i + 1];
-          //std::cout << "Option -h value: " << hostname << std::endl;
-      } else if (strcmp(argv[i], "-k") == 0) {
-          // Handle the -k option and its value
-          port = argv[i + 1];
-          //std::cout << "Option -k value: " << port << std::endl;
-      } else if (strcmp(argv[i], "-p") == 0) {
-          // Handle the -p option and its value
-          pValue = argv[i + 1];
-          //std::cout << "Option -p value: " << pValue << std::endl;
-      } else {
-          //std::cerr << "Unknown option: " << argv[i] << std::endl;
-          return 1; // Return an error code
-      }
- 
-  }
- 
-  /*std::string port = "3030";
-  
-  int opt = 0;
-  while ((opt = getopt(argc, argv, "p:")) != -1){
-    switch(opt) {
-      case 'p':
-          port = optarg;break;
-      default:
-	  std::cerr << "Invalid Command Line Argument\n";
+    // Parsing command-line arguments using getopt
+    int opt;
+    while ((opt = getopt(argc, argv, "c:s:h:k:p:")) != -1) {
+        switch (opt) {
+            case 'c':
+                clusterID = std::atoi(optarg);
+                break;
+            case 's':
+                serverID = std::atoi(optarg);
+                break;
+            case 'h':
+                hostname = optarg;
+                break;
+            case 'k':
+                coordPort = std::atoi(optarg);
+                break;
+            case 'p':
+                portNo = std::atoi(optarg);
+                break;
+            default:
+                std::cerr << "Invalid Command Line Argument\n";
+                return 1;
+        }
     }
-  }*/
-  
-  //std::string log_file_name = std::string("server-") + port;
-  //google::InitGoogleLogging(log_file_name.c_str());
-  log(INFO, "Logging Initialized. Server: " + std::to_string(sValue) +  " starting...");
 
-  RunServer(cValue,sValue,hostname,port,pValue);
+    log(INFO, "Logging Initialized. Server: " + std::to_string(serverID) + " starting...");
+    RunServer(clusterID, serverID, hostname, coordPort, portNo);
 
-  return 0;
+    return 0;
 }
