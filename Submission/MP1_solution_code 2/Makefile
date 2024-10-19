@@ -31,7 +31,7 @@ GRPC_CPP_PLUGIN = grpc_cpp_plugin
 GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
 PROTOS_PATH = .
 
-all: system-check tsc tsd coordinator 
+all: system-check tsc tsd coordinator test1 test2 test3
 
 tsc: client.o coordinator.pb.o coordinator.grpc.pb.o sns.pb.o sns.grpc.pb.o tsc.o
 	$(CXX) $^ $(LDFLAGS) -g -o $@
@@ -42,6 +42,16 @@ tsd: coordinator.pb.o coordinator.grpc.pb.o sns.pb.o sns.grpc.pb.o tsd.o
 coordinator: coordinator.pb.o coordinator.grpc.pb.o coordinator.o
 	$(CXX) $^ $(LDFLAGS) -g -o $@
 
+# Targets for test1, test2, and test3
+test1: test1.cc
+	$(CXX) -o test1 testcase1.cc
+
+test2: test2.cc
+	$(CXX) -o test2 testcase2.cc
+
+test3: testcase3.cc
+	$(CXX) -o test3 testcase3.cc
+
 .PRECIOUS: %.grpc.pb.cc
 %.grpc.pb.cc: %.proto
 	$(PROTOC) -I $(PROTOS_PATH) --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) $<
@@ -51,7 +61,7 @@ coordinator: coordinator.pb.o coordinator.grpc.pb.o coordinator.o
 	$(PROTOC) -I $(PROTOS_PATH) --cpp_out=. $<
 
 clean:
-	rm -f *.txt *.o *.pb.cc *.pb.h tsc tsd coordinator 
+	rm -f *.txt *.o *.pb.cc *.pb.h tsc tsd coordinator test1 test2 test3
 
 
 # The following is to test your system and ensure a smoother experience.
