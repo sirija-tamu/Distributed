@@ -87,6 +87,7 @@ bool zNode::isActive(){
 class CoordServiceImpl final : public CoordService::Service {
 
     Status Heartbeat(ServerContext* context, const ServerInfo* serverinfo, Confirmation* confirmation) override {
+        log(INFO, "Invoked heartbeat");
         // Your code here
         int clusterID = serverinfo->clusterid();
         int serverID = serverinfo->serverid();
@@ -95,14 +96,13 @@ class CoordServiceImpl final : public CoordService::Service {
 
         // Check if its valid clusterID
         if(clusterID <=3) {
-            vector<zNode*> cluster = clusters[clusterID];
             confirmation->set_status(true);
-            for (zNode* node : cluster) {
-                if (node.serverID == serverID) {
-                    node.last_heartbeat = getTimeNow();
-                    node.missed_heartbeat = false;
+            for (zNode* node : clusters[clusterID-1]) {
+                if (node->serverID == serverID) {
+                    node->last_heartbeat = getTimeNow();
+                    node->missed_heartbeat = false;
 
-                    std::tm* timeInfo = std::localtime(&node.last_heartbeat);
+                    std::tm* timeInfo = std::localtime(&node->last_heartbeat);
                     std::ostringstream oss;
                     oss << std::put_time(timeInfo, "%Y-%m-%d %H:%M:%S");
 
@@ -129,13 +129,12 @@ class CoordServiceImpl final : public CoordService::Service {
 
     // Check if its valid clusterID
     if(clusterID <=3) {
-        vector<zNode*> cluster = clusters[clusterID];
-        if (cluster != nullptr) {
-            for (zNode* node : clusters[clusterID]) {
-                if (node.isActive()) {
+        if (!clusters[clusterID-1].empty()) {
+            for (zNode* node : clusters[clusterID-1]) {
+                if (node->isActive()) {
 
-                    serverinfo->set_hostname(node.hostname);
-                    serverinfo->set_port(node.port);
+                    serverinfo->set_hostname(node->hostname);
+                    serverinfo->set_port(node->port);
                 }
                 else {
                     serverinfo->set_hostname("Server Inactive");
@@ -153,26 +152,16 @@ class CoordServiceImpl final : public CoordService::Service {
 
  //Function to check if zNode exists in the cluster
   Status exists(ServerContext* context, const ServerInfo* serverinfo, csce662::Status* status){
-
+    log(INFO, "Invoked exists");
     int clusterID = serverinfo->clusterid();
     int serverID = serverinfo->serverid();
-
-    zNode znode;
-
-    znode.hostname = serverinfo->hostname();
-    znode.port = serverinfo->port();
-    znode.last_heartbeat = getTimeNow();
-    znode.missed_heartbeat = false;
-    znode.serverID = serverID;
-
-
-    auto cluster_it = cluster.find(clusterID);
-
+    
     status->set_status(false);
     if(clusterID <=3) {
-        vector<zNode*> cluster = clusters[clusterID];
-        for (zNode* node : clusters[clusterID]) {
-            if (node.serverID == serverID) {
+        bool serverFound = false;
+ 
+        for (zNode* node : clusters[clusterID-1]) {
+            if (node->serverID == serverID) {
                 serverFound = true;
                 status->set_status(true);
                 return Status::OK;
@@ -187,39 +176,43 @@ class CoordServiceImpl final : public CoordService::Service {
 
   //Creating a zNode in the cluster
   Status create(ServerContext* context, const ServerInfo* serverinfo, csce662::Status* status){
+    log(INFO, "Invoked create");
     
     int clusterID = serverinfo->clusterid();
     int serverID = serverinfo->serverid();
 
-    zNode znode;
+    zNode* znode = new zNode();
 
-    znode.hostname = serverinfo->hostname();
-    znode.port = serverinfo->port();
-    znode.last_heartbeat = getTimeNow();
-    znode.missed_heartbeat = false;
-    znode.serverID = serverID;
+    znode->hostname = serverinfo->hostname();
+    znode->port = serverinfo->port();
+    znode->last_heartbeat = getTimeNow();
+    znode->missed_heartbeat = false;
+    znode->serverID = serverID;
 
     if(clusterID <=3) {
+        log(INFO, "Updated heartbeat time for Server ");
 
         // Now, check if a zNode with the given serverID exists within this cluster
         bool serverFound = false;
-        for (zNode* node : clusters[clusterID]) {
-            if (node.serverID == serverID) {
+        for (zNode* node : clusters[clusterID-1]) {
+            if (node->serverID == serverID) {
                 serverFound = true;
                 status->set_status(true);
                 return Status::OK;
                 break; // You can stop searching once you find a matching serverID
             }
         }
+        log(INFO, "Updated heartbeat time for Server ");
 
         if (serverFound) {
 
-            log(INFO,"Server = " + std::to_string(serverID) + " exists in Cluster " + std::to_string(clusterID) + "\n");
+            log(INFO, "Updated heartbeat time for Server ");
 
             //std::cout << "Server " << serverID << " exists in Cluster " << clusterID << "." << std::endl;
         } else {
+            log(INFO, "Logging Initialized. Server: ");
             status->set_status(false);
-            clusters[clusterID].push_back(znode);
+            clusters[clusterID-1].push_back(znode);
         }
     }
     
@@ -232,6 +225,7 @@ class CoordServiceImpl final : public CoordService::Service {
 };
 
 void RunServer(std::string port_no){
+    log(INFO, "Invoked runserver");
     //start thread to check heartbeats
     std::thread hb(checkHeartbeat);
     //localhost = 127.0.0.1
@@ -252,6 +246,7 @@ void RunServer(std::string port_no){
     // Wait for the server to shutdown. Note that some other thread must be
     // responsible for shutting down the server for this call to ever return.
     server->Wait();
+    log(INFO, "done with runserver");
 }
 
 int main(int argc, char** argv) {
@@ -268,25 +263,22 @@ int main(int argc, char** argv) {
         }
     }
     RunServer(port);
-    return 0;
 }
 
 
 
 void checkHeartbeat(){
+ log(INFO, "Invoked check heart beat");
   
   while (true) {
       // Loop through the integers (cluster IDs) in the map
-      for (auto& pair : cluster) {
-          int clusterID = pair.first; // Get the cluster ID
-          std::vector<zNode>& nodes = pair.second; // Get the vector of zNodes for this cluster
-
+      for (int clusterID = 1; clusterID < 4; clusterID++) {
           // Loop through the zNodes in the vector
-          for (zNode& node : nodes) {
+          for (zNode* node : clusters[clusterID-1]) {
               // Check if the last heartbeat is more than 10 seconds ago
-              if (difftime(getTimeNow(), node.last_heartbeat) > 10) {
+              if (difftime(getTimeNow(), node->last_heartbeat) > 10) {
                   // Update the missed_heartbeat flag
-                  node.missed_heartbeat = true;
+                  node->missed_heartbeat = true;
               }
           }
       }
