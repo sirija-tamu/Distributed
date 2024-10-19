@@ -32,6 +32,8 @@
  */
 
 #include <ctime>
+#include <thread>
+#include <chrono>
 
 #include <google/protobuf/timestamp.pb.h>
 #include <google/protobuf/duration.pb.h>
@@ -48,6 +50,7 @@
 #define log(severity, msg) LOG(severity) << msg; google::FlushLogFiles(google::severity); 
 
 #include "sns.grpc.pb.h"
+#include "coordinator.grpc.pb.h"
 
 
 using google::protobuf::Timestamp;
@@ -64,6 +67,13 @@ using csce662::ListReply;
 using csce662::Request;
 using csce662::Reply;
 using csce662::SNSService;
+using csce662::CoordService;
+using csce662::Confirmation;
+using csce662::ServerInfo;
+using std::string;
+
+
+
 
 struct Client {
   std::string username;
@@ -79,6 +89,7 @@ struct Client {
 
 //Vector that stores every client that has been created
 std::vector<Client*> client_db;
+ServerInfo serverInfo;
 
 //Helper function used to find a Client object given its username
 int find_user(std::string username){
@@ -257,41 +268,123 @@ class SNSServiceImpl final : public SNSService::Service {
   }
 
 };
+// Function to send repeated heartbeats to the coordinator
+void sendHeartbeat(const std::string& coordinatorAddress) {
+    bool isFirstTime = true;
 
-void RunServer(std::string port_no) {
-  std::string server_address = "0.0.0.0:"+port_no;
-  SNSServiceImpl service;
+    while (true) {
+        // Establish gRPC channel to the coordinator
+        std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(coordinatorAddress, grpc::InsecureChannelCredentials());
+        std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);
 
-  ServerBuilder builder;
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-  builder.RegisterService(&service);
-  std::unique_ptr<Server> server(builder.BuildAndStart());
-  std::cout << "Server listening on " << server_address << std::endl;
-  log(INFO, "Server listening on "+server_address);
+        // Prepare the RPC call to the Heartbeat function
+        grpc::ClientContext context;
+        csce662::Confirmation confirmation;
+        grpc::Status status = stub->Heartbeat(&context, serverInfo, &confirmation);
 
-  server->Wait();
+        if (status.ok()) {
+            log(INFO, "Heartbeat sent to coordinator.");
+        } else {
+            log(INFO, "Couldn't send heartbeat to coordinator");
+        }
+
+        // Delay for the first heartbeat (5s) and subsequent heartbeats (10s)
+        sleep(isFirstTime ? 5 : 10);
+        isFirstTime = false;
+    }
+}
+
+// Function to check if zNode exists in the coordinator cluster
+bool exists(const std::string coordinatorAddress) {
+    std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(coordinatorAddress, grpc::InsecureChannelCredentials());
+    std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);
+
+    grpc::ClientContext context;
+    csce662::Status status;
+    grpc::Status rpcStatus = stub->exists(&context, serverInfo, &status);
+
+    if (status.status()) {
+        log(INFO, "Server exists");
+    } 
+
+    return status.status();
+}
+
+// Function to create zNode in the coordinator cluster
+void create(const std::string& coordinatorAddress) {
+    std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(coordinatorAddress, grpc::InsecureChannelCredentials());
+    std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);
+
+    grpc::ClientContext context;
+    csce662::Status status;
+    grpc::Status rpcStatus = stub->create(&context, serverInfo, &status);
+
+    log(INFO, status.status() ? "Server creation successful." : "Server creation failed.");
+}
+
+// Function to run the server
+void RunServer(int clusterID, int serverID, const std::string coordHostname, const std::string coordPort, const std::string portNo) {
+    // Initialize server information
+    serverInfo.set_hostname("0.0.0.0");
+    serverInfo.set_port(portNo);
+    serverInfo.set_serverid(serverID);
+    serverInfo.set_clusterid(clusterID);
+
+    std::string serverAddress = "0.0.0.0:" + portNo;
+    SNSServiceImpl service;
+
+    ServerBuilder builder;
+    builder.AddListeningPort(serverAddress, grpc::InsecureServerCredentials());
+    builder.RegisterService(&service);
+    std::unique_ptr<Server> server(builder.BuildAndStart());
+    log(INFO, "Server listening on " + serverAddress);
+
+    std::string coordAddress = coordHostname + ":" + coordPort;
+
+    // Check existence and create if necessary
+    if (!exists(coordAddress)) {
+        log(INFO, "Creating new Server as it doesn't exist");
+        create(coordAddress);
+    }
+
+    // Start heartbeat thread
+    std::thread heartbeatThread(sendHeartbeat, coordAddress);
+
+    server->Wait();
+    heartbeatThread.join();
 }
 
 int main(int argc, char** argv) {
+    int clusterID = 0, serverID = 0;
+    std::string hostname, coordPort, portNo;
 
-  
-  
-  std::string port = "3010";
-  
-  int opt = 0;
-  while ((opt = getopt(argc, argv, "p:")) != -1){
-    switch(opt) {
-      case 'p':
-          port = optarg;break;
-      default:
-	  std::cerr << "Invalid Command Line Argument\n";
+    // Parsing command-line arguments using getopt
+    int opt;
+    while ((opt = getopt(argc, argv, "c:s:h:k:p:")) != -1) {
+        switch (opt) {
+            case 'c':
+                clusterID = std::atoi(optarg);
+                break;
+            case 's':
+                serverID = std::atoi(optarg);
+                break;
+            case 'h':
+                hostname = optarg;
+                break;
+            case 'k':
+                coordPort = optarg;
+                break;
+            case 'p':
+                portNo = optarg;
+                break;
+            default:
+                std::cerr << "Invalid Command Line Argument\n";
+                return 1;
+        }
     }
-  }
-  
-  std::string log_file_name = std::string("server-") + port;
-  google::InitGoogleLogging(log_file_name.c_str());
-  log(INFO, "Logging Initialized. Server starting...");
-  RunServer(port);
 
-  return 0;
+    log(INFO, "Logging Initialized. Server: " + std::to_string(serverID) + " starting...");
+    RunServer(clusterID, serverID, hostname, coordPort, portNo);
+
+    return 0;
 }

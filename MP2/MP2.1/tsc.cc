@@ -7,8 +7,11 @@
 #include <csignal>
 #include <grpc++/grpc++.h>
 #include "client.h"
-
+#include "coordinator.grpc.pb.h"
 #include "sns.grpc.pb.h"
+#include<glog/logging.h>
+#define log(severity, msg) LOG(severity) << msg; google::FlushLogFiles(google::severity); 
+
 using grpc::Channel;
 using grpc::ClientContext;
 using grpc::ClientReader;
@@ -20,6 +23,10 @@ using csce662::ListReply;
 using csce662::Request;
 using csce662::Reply;
 using csce662::SNSService;
+using csce662::CoordService;
+using csce662::Confirmation;
+using csce662::ServerInfo;
+using csce662::ID;
 
 void sig_ignore(int sig) {
   std::cout << "Signal caught " + sig;
@@ -55,11 +62,14 @@ private:
   std::string hostname;
   std::string username;
   std::string port;
+  int connected;
+
   
   // You can have an instance of the client stub
   // as a member variable.
   std::unique_ptr<SNSService::Stub> stub_;
-  
+  std::unique_ptr<CoordService::Stub> coordStub;
+
   IReply Login();
   IReply List();
   IReply Follow(const std::string &username);
@@ -82,7 +92,29 @@ int Client::connectTo()
   // a member variable in your own Client class.
   // Please refer to gRpc tutorial how to create a stub.
   // ------------------------------------------------------------
-  std::string login_info = hostname + ":" + port;
+    std::string login_info = hostname + ":" + port;
+    // Create a new stub for the Coordinator service
+    coordStub = CoordService::NewStub(grpc::CreateChannel(
+          login_info, grpc::InsecureChannelCredentials()
+        ));
+
+    // Initialize ClientContext, ServerInfo and ID for RPC settings
+    ClientContext clientContext;
+    ServerInfo serverInfo;
+    ID id;
+    id.set_id(atoi(username.c_str()));
+
+    // Call GetServer to fetch server info
+    grpc::Status grpcStatus = coordStub->GetServer(&clientContext, id, &serverInfo);
+
+    // Check for gRPC call success
+    if (!grpcStatus.ok()) {
+        return -1; // Return error code if failed
+    }
+
+    // Update login_info with the server's hostname and port
+    login_info = serverInfo.hostname() + ":" + serverInfo.port();
+
     stub_ = std::unique_ptr<SNSService::Stub>(SNSService::NewStub(
 			       grpc::CreateChannel(
 			      login_info, grpc::InsecureChannelCredentials())));
@@ -166,6 +198,13 @@ IReply Client::processCommand(std::string& input)
     if (input == "LIST") {
       return List();
     } else if (input == "TIMELINE") {
+      // Try to check if we are able to ping server!
+      IReply tryLogin = List();
+      // If the server is down, return failure unknown
+      if (!tryLogin.grpc_status.ok()){
+        ire.comm_status = FAILURE_UNKNOWN;
+        return ire;
+      }
       ire.comm_status = SUCCESS;
       return ire;
     }
@@ -349,13 +388,13 @@ int main(int argc, char** argv) {
   std::string port = "3010";
     
   int opt = 0;
-  while ((opt = getopt(argc, argv, "h:u:p:")) != -1){
+  while ((opt = getopt(argc, argv, "h:k:u:")) != -1){
     switch(opt) {
     case 'h':
       hostname = optarg;break;
     case 'u':
       username = optarg;break;
-    case 'p':
+    case 'k':
       port = optarg;break;
     default:
       std::cout << "Invalid Command Line Argument\n";

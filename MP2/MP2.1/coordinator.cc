@@ -20,6 +20,10 @@
 #include <unistd.h>
 #include <google/protobuf/util/time_util.h>
 #include <grpc++/grpc++.h>
+#include<glog/logging.h>
+#include <map>
+
+#define log(severity, msg) LOG(severity) << msg; google::FlushLogFiles(google::severity); 
 
 #include "coordinator.grpc.pb.h"
 #include "coordinator.pb.h"
@@ -39,6 +43,8 @@ using csce662::Confirmation;
 using csce662::ID;
 using csce662::ServerList;
 using csce662::SynchService;
+using csce662::Path;
+using csce662::PathAndData;
 
 struct zNode{
     int serverID;
@@ -82,6 +88,21 @@ class CoordServiceImpl final : public CoordService::Service {
 
     Status Heartbeat(ServerContext* context, const ServerInfo* serverinfo, Confirmation* confirmation) override {
         // Your code here
+        int clusterID = serverinfo->clusterid();
+        int serverID = serverinfo->serverid();
+        
+        log(INFO, "Heartbeat received from Server " + serverinfo->hostname() + " at port " + serverinfo->port() + ".\n");
+        confirmation->set_status(true);  // Acknowledge receipt of the heartbeat
+        for (zNode* node : clusters[clusterID - 1]) {
+            // If server ID present
+            if (node->serverID == serverID) {
+                // Update the node's last heartbeat timestamp
+                node->last_heartbeat = getTimeNow();
+                node->missed_heartbeat = false; 
+                log(INFO, "Updated heartbeat for Server " + std::to_string(serverID));
+                return Status::OK;
+            }
+        }
         return Status::OK;
     }
 
@@ -90,9 +111,82 @@ class CoordServiceImpl final : public CoordService::Service {
     //hardcoded to represent this.
     Status GetServer(ServerContext* context, const ID* id, ServerInfo* serverinfo) override {
         // Your code here
+        log(INFO, "Got GetServer for clientID: " + std::to_string(id->id()) + "\n");
+        // Determine the cluster ID based on the client ID
+        int clusterID = ((id->id() - 1) % 3) + 1;
+        bool serverFound = false; // Track if an active server is found
+        if (!clusters[clusterID - 1].empty()) {
+            for (zNode* node : clusters[clusterID - 1]) {
+                if (node->isActive()) {
+                    // If the server is active, set the hostname and port
+                    serverinfo->set_hostname(node->hostname);
+                    serverinfo->set_port(node->port);
+                    serverFound = true; // Mark that an active server has been found
+                    break; // Exit loop after finding the first active server
+                }
+            }
+        } 
+        // If no active server was found, throw error!
+        if (!serverFound) {
+            return Status(grpc::StatusCode::NOT_FOUND, "Server not found");
+        }
         return Status::OK;
     }
+    
+Status exists(ServerContext* context, const ServerInfo* serverinfo, csce662::Status* status) {
+    // Get the cluster ID and server ID from the provided ServerInfo object
+    int clusterID = serverinfo->clusterid();
+    int serverID = serverinfo->serverid();
 
+    // Default status to false
+    status->set_status(false);
+
+    // Iterate through the nodes in the specified cluster
+    for (zNode* node : clusters[clusterID - 1]) {
+        // Check if the current node's server ID found, set status to true
+        if (node->serverID == serverID) {
+            status->set_status(true); // Update status to true
+            break; 
+        }
+    }
+
+    return Status::OK;
+}
+
+Status create(ServerContext* context, const ServerInfo* serverinfo, csce662::Status* status) {
+    // Get cluster and server IDs
+    int clusterID = serverinfo->clusterid();
+    int serverID = serverinfo->serverid();
+
+    // Create a new zNode
+    zNode* znode = new zNode();
+
+    // Set zNode properties
+    znode->hostname = serverinfo->hostname();
+    znode->port = serverinfo->port();
+    znode->last_heartbeat = getTimeNow(); // Record the current time as last heartbeat
+    znode->missed_heartbeat = false; // Initialize missed heartbeat flag
+    znode->serverID = serverID; // Set server ID
+
+    log(INFO, "Updated heartbeat time for Server "); // Log update
+    
+    // Check if a zNode with the given serverID exists
+    bool serverFound = false;
+    for (zNode* node : clusters[clusterID - 1]) { // Iterate over nodes in the cluster
+        if (node->serverID == serverID) { // If server ID matches
+            serverFound = true; // Server found
+            status->set_status(true); // Set status to true
+            return Status::OK; // Exit early if found
+        }
+    }
+    // Add new server if there is no server
+    log(INFO, "Adding New Server to cluster" + std::to_string(clusterID) + "\n" ); // Log new server initialization
+    clusters[clusterID - 1].push_back(znode); // Add new zNode to the cluster
+    status->set_status(true); 
+    return Status::OK; 
+}
+
+  
 
 };
 
