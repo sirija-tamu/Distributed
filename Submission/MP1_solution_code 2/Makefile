@@ -43,10 +43,10 @@ coordinator: coordinator.pb.o coordinator.grpc.pb.o coordinator.o
 	$(CXX) $^ $(LDFLAGS) -g -o $@
 
 # Targets for test1, test2, and test3
-test1: test1.cc
+test1: testcase1.cc
 	$(CXX) -o test1 testcase1.cc
 
-test2: test2.cc
+test2: testcase2.cc
 	$(CXX) -o test2 testcase2.cc
 
 test3: testcase3.cc
