@@ -271,6 +271,7 @@ class SNSServiceImpl final : public SNSService::Service {
 // Function to send repeated heartbeats to the coordinator
 void sendHeartbeat(const std::string& coordinatorAddress) {
     bool isFirstTime = true;
+    log(INFO, "Here!");
 
     while (true) {
         // Establish gRPC channel to the coordinator
@@ -295,7 +296,7 @@ void sendHeartbeat(const std::string& coordinatorAddress) {
 }
 
 // Function to check if zNode exists in the coordinator cluster
-bool exists(const std::string& coordinatorAddress) {
+bool exists(const std::string coordinatorAddress) {
     std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(coordinatorAddress, grpc::InsecureChannelCredentials());
     std::unique_ptr<csce662::CoordService::Stub> stub = csce662::CoordService::NewStub(channel);
 
@@ -323,7 +324,7 @@ void create(const std::string& coordinatorAddress) {
 }
 
 // Function to run the server
-void RunServer(int clusterID, int serverID, const std::string& coordHostname, const std::string& coordPort, const std::string& portNo) {
+void RunServer(int clusterID, int serverID, const std::string coordHostname, const std::string coordPort, const std::string portNo) {
     // Initialize server information
     serverInfo.set_hostname("0.0.0.0");
     serverInfo.set_port(portNo);
@@ -372,10 +373,10 @@ int main(int argc, char** argv) {
                 hostname = optarg;
                 break;
             case 'k':
-                coordPort = std::atoi(optarg);
+                coordPort = optarg;
                 break;
             case 'p':
-                portNo = std::atoi(optarg);
+                portNo = optarg;
                 break;
             default:
                 std::cerr << "Invalid Command Line Argument\n";

@@ -72,7 +72,8 @@ int main() {
     create_tmux_session("CLIENT2");
     open_terminal_for_tmux("CLIENT2");
     send_command_to_tmux("CLIENT2", "./tsc -h localhost -k 9090 -u 2");
-
+    wait(2);
+    
     // kill Server 2
     kill_server("SERVER2");
     wait(1);

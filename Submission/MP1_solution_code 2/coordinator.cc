@@ -128,7 +128,7 @@ class CoordServiceImpl final : public CoordService::Service {
         } 
         // If no active server was found, throw error!
         if (!serverFound) {
-            return Status::ERROR
+            return Status(grpc::StatusCode::NOT_FOUND, "Server not found");
         }
         return Status::OK;
     }
