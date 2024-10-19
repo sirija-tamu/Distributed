@@ -87,7 +87,6 @@ bool zNode::isActive(){
 class CoordServiceImpl final : public CoordService::Service {
 
     Status Heartbeat(ServerContext* context, const ServerInfo* serverinfo, Confirmation* confirmation) override {
-        log(INFO, "Invoked heartbeat");
         // Your code here
         int clusterID = serverinfo->clusterid();
         int serverID = serverinfo->serverid();
@@ -225,7 +224,6 @@ class CoordServiceImpl final : public CoordService::Service {
 };
 
 void RunServer(std::string port_no){
-    log(INFO, "Invoked runserver");
     //start thread to check heartbeats
     std::thread hb(checkHeartbeat);
     //localhost = 127.0.0.1
@@ -246,7 +244,6 @@ void RunServer(std::string port_no){
     // Wait for the server to shutdown. Note that some other thread must be
     // responsible for shutting down the server for this call to ever return.
     server->Wait();
-    log(INFO, "done with runserver");
 }
 
 int main(int argc, char** argv) {
@@ -263,29 +260,36 @@ int main(int argc, char** argv) {
         }
     }
     RunServer(port);
+    return 0;
 }
 
 
 
 void checkHeartbeat(){
- log(INFO, "Invoked check heart beat");
-  
-  while (true) {
-      // Loop through the integers (cluster IDs) in the map
-      for (int clusterID = 1; clusterID < 4; clusterID++) {
-          // Loop through the zNodes in the vector
-          for (zNode* node : clusters[clusterID-1]) {
-              // Check if the last heartbeat is more than 10 seconds ago
-              if (difftime(getTimeNow(), node->last_heartbeat) > 10) {
-                  // Update the missed_heartbeat flag
-                  node->missed_heartbeat = true;
-              }
-          }
-      }
+    while(true){
+        //check servers for heartbeat > 10
+        //if true turn missed heartbeat = true
+        // Your code below
 
-      sleep(2);
-  }
+        v_mutex.lock();
 
+        // iterating through the clusters vector of vectors of znodes
+        for (auto& c : clusters){
+            for(auto& s : c){
+                if(difftime(getTimeNow(),s->last_heartbeat)>10){
+                    std::cout << "missed heartbeat from server " << s->serverID << std::endl;
+                    if(!s->missed_heartbeat){
+                        s->missed_heartbeat = true;
+                        s->last_heartbeat = getTimeNow();
+                    }
+                }
+            }
+        }
+
+        v_mutex.unlock();
+
+        sleep(3);
+    }
 }
 
 
