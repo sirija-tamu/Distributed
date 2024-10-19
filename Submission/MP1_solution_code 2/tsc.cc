@@ -198,15 +198,14 @@ IReply Client::processCommand(std::string& input)
     if (input == "LIST") {
       return List();
     } else if (input == "TIMELINE") {
-      // Try to login
-      IReply tryLogin = Login();
-      // If it doesn't fail, set status to sucess
-      if(tryLogin.comm_status == FAILURE_ALREADY_EXISTS || tryLogin.comm_status == SUCCESS)
-        ire.comm_status = SUCCESS;
-      else {
-        return tryLogin;
+      // Try to check if we are able to ping server!
+      IReply tryLogin = List();
+      // If the server is down, return failure unknown
+      if (!tryLogin.grpc_status.ok()){
+        ire.comm_status = FAILURE_UNKNOWN;
+        return ire;
       }
-      
+      ire.comm_status = SUCCESS;
       return ire;
     }
   }
