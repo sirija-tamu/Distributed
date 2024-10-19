@@ -64,7 +64,7 @@ std::vector<zNode*> cluster2;
 std::vector<zNode*> cluster3;
 
 // creating a vector of vectors containing znodes
-std::map<int,std::vector<zNode>> cluster;
+std::vector<std::vector<zNode*>> clusters = {cluster1, cluster2, cluster3};
 
 
 //func declarations
@@ -91,21 +91,13 @@ class CoordServiceImpl final : public CoordService::Service {
         int clusterID = serverinfo->clusterid();
         int serverID = serverinfo->serverid();
         log(INFO, "Received Heartbeat from Server "+serverinfo->hostname() + ":" + serverinfo->port() + "\n");
-        //std::cout <<  << serverID << " (" << serverinfo->hostname() + ":" + serverinfo->port() << ")" << std::endl;
-
         // Your code here to handle the heartbeat.
 
-        // Check if the server is already in the list.
-        auto cluster_it = cluster.find(clusterID);
-
-        confirmation->set_status(true);
-
-        if (cluster_it != cluster.end()) {
-            // The clusterID exists in the map
-            std::vector<zNode>& nodes = cluster_it->second;
-
-            // Now, check if a zNode with the given serverID exists within this cluster
-            for (zNode& node : nodes) {
+        // Check if its valid clusterID
+        if(clusterID <=3) {
+            vector<zNode*> cluster = clusters[clusterID];
+            confirmation->set_status(true);
+            for (zNode* node : cluster) {
                 if (node.serverID == serverID) {
                     node.last_heartbeat = getTimeNow();
                     node.missed_heartbeat = false;
@@ -115,8 +107,6 @@ class CoordServiceImpl final : public CoordService::Service {
                     oss << std::put_time(timeInfo, "%Y-%m-%d %H:%M:%S");
 
                     log(INFO, "Updated heartbeat time for Server "+ std::to_string(serverID) + " Received at time = " + oss.str() + "\n");
-                    //std::cout << "Updated heartbeat time for Server " << serverID <<" Received at time = "<<oss.str()<< std::endl<< std::endl;
-
                     return Status::OK;
                 }
             }
@@ -136,12 +126,12 @@ class CoordServiceImpl final : public CoordService::Service {
     // Your code here
     // If server is active, return serverinfo
 
-    // Check if the clusterID exists in the map
-    if (cluster.find(clusterID) != cluster.end()) {
-        // Check if the cluster contains a non-empty vector of zNodes
-        if (!cluster[clusterID].empty()) {
-            // Iterate through the vector to find an active zNode
-            for (zNode& node : cluster[clusterID]) {
+
+    // Check if its valid clusterID
+    if(clusterID <=3) {
+        vector<zNode*> cluster = clusters[clusterID];
+        if (cluster != nullptr) {
+            for (zNode* node : clusters[clusterID]) {
                 if (node.isActive()) {
 
                     serverinfo->set_hostname(node.hostname);
@@ -152,7 +142,6 @@ class CoordServiceImpl final : public CoordService::Service {
                 }
             }
         } else {
-
               serverinfo->set_hostname("Failure");
         }
     } else {
@@ -180,14 +169,9 @@ class CoordServiceImpl final : public CoordService::Service {
     auto cluster_it = cluster.find(clusterID);
 
     status->set_status(false);
-    
-    if (cluster_it != cluster.end()) {
-        // The clusterID exists in the map
-        std::vector<zNode>& nodes = cluster_it->second;
-
-        // Now, check if a zNode with the given serverID exists within this cluster
-        bool serverFound = false;
-        for (const zNode& node : nodes) {
+    if(clusterID <=3) {
+        vector<zNode*> cluster = clusters[clusterID];
+        for (zNode* node : clusters[clusterID]) {
             if (node.serverID == serverID) {
                 serverFound = true;
                 status->set_status(true);
@@ -215,16 +199,11 @@ class CoordServiceImpl final : public CoordService::Service {
     znode.missed_heartbeat = false;
     znode.serverID = serverID;
 
-
-    auto cluster_it = cluster.find(clusterID);
-
-    if (cluster_it != cluster.end()) {
-        // The clusterID exists in the map
-        std::vector<zNode>& nodes = cluster_it->second;
+    if(clusterID <=3) {
 
         // Now, check if a zNode with the given serverID exists within this cluster
         bool serverFound = false;
-        for (const zNode& node : nodes) {
+        for (zNode* node : clusters[clusterID]) {
             if (node.serverID == serverID) {
                 serverFound = true;
                 status->set_status(true);
@@ -240,27 +219,10 @@ class CoordServiceImpl final : public CoordService::Service {
             //std::cout << "Server " << serverID << " exists in Cluster " << clusterID << "." << std::endl;
         } else {
             status->set_status(false);
-            nodes.push_back(znode);
+            clusters[clusterID].push_back(znode);
         }
-    } else {
-        // The clusterID does not exist in the map
-
-        log(INFO,"Cluster " + std::to_string(clusterID) + " does not exist in the map. Adding it...\n");
-
-        //std::cout << "Cluster " << clusterID << " does not exist in the map. Adding it..." << std::endl;
-        
-        // Create a new cluster vector and push the zNode into it
-        std::vector<zNode> newCluster;
-        newCluster.push_back(znode);        
-
-        // Insert the new cluster into the map
-        cluster.insert({clusterID, newCluster});
-
-        log(INFO," Server " + std::to_string(serverID) + " added to Cluster " + std::to_string(clusterID) + "\n");
-        
-        //std::cout << "Server " << serverID << " added to Cluster " << clusterID << "." << std::endl;
     }
-
+    
     status->set_status(true);
 
     return Status::OK;
