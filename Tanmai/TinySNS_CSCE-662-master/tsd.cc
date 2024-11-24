@@ -282,7 +282,7 @@ class SNSServiceImpl final : public SNSService::Service {
       int user_index = find_user(username);
       c = client_db[user_index];
       c->stream = stream;
-      std::string filename = getfilename(username) + ".txt";
+      std::string filename = getfilename(username) + "_timeline.txt";
       std::ofstream user_file(filename, std::ios::app|std::ios::out|std::ios::in);
       google::protobuf::Timestamp temptime = message.timestamp();
       // std::string time = google::protobuf::util::TimeUtil::ToString(temptime);

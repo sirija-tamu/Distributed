@@ -254,7 +254,7 @@ void run_synchronizer(std::string coordIP, std::string coordPort, std::string po
             diff = appender(otherClusterUser["flw"],d.flw());
             for (auto &currentUserBeingFollowed : diff) {              
               if (find(myusers.begin(),myusers.end(), currentUserBeingFollowed) != myusers.end()) {
-                std::string fname = master_path + "_"+currentUserBeingFollowed+"_followers.txt";
+                std::string fname = master_path +currentUserBeingFollowed+"_followers.txt";
                 std::ofstream oflr(fname, std::ios::app);
                 oflr << d.user() << "\n";
                 oflr.close();
@@ -268,7 +268,7 @@ void run_synchronizer(std::string coordIP, std::string coordPort, std::string po
             for (auto currentuser : myusers) {
               for (auto &msg : diff) {
                 if (find(vec.begin(), vec.end(), currentuser) != vec.end()) {
-                  std::string tfile = master_path +"_timeline.txt";
+                  std::string tfile = master_path + currentuser + "_timeline.txt";
                   std::ofstream timeline(tfile, std::ios::app);
                   timeline << msg+"\n" << "\n";
                   timeline.close();
@@ -390,7 +390,6 @@ std::vector<std::string> get_tl_or_fl(int synchID, int clientID, std::string nam
     if(name == "tl") {
         master_fn.append("_timeline.txt");
         slave_fn.append("_timeline.txt");
-        skip = true;
     }else if (name == "flw") {
         master_fn.append("_following.txt");
         slave_fn.append("_following.txt");

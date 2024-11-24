@@ -124,8 +124,22 @@ int main() {
     wait(1);
     // open timeline
     send_command_to_tmux("CLIENT1", "TIMELINE");
-    wait(1);
+    wait(31);
     std::cout << "Test case complete. Validate the output manually." << std::endl;
+    wait(300);
+    kill_tmux_session("COORDINATOR");
+    kill_tmux_session("MASTER1");
+    kill_tmux_session("SLAVE1");
+    kill_tmux_session("MASTER2");
+    kill_tmux_session("SLAVE2");
+    kill_tmux_session("MASTER3");
+    kill_tmux_session("SLAVE3");
+    kill_tmux_session("SYNC1");
+    kill_tmux_session("SYNC2");
+    kill_tmux_session("SYNC3");
+    kill_tmux_session("CLIENT1");
+    kill_tmux_session("CLIENT2");
+    kill_tmux_session("CLIENT3");
     return 0;
 }
 
