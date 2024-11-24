@@ -85,6 +85,7 @@ std::vector<std::string> getFollowersOfUser(int);
 bool file_contains_user(std::string filename, std::string user);
 std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> others = {};
 std::vector<std::string> appender(std::vector<std::string> &v, const google::protobuf::RepeatedPtrField<std::string>&  data);
+void run_synchronizer(std::string coordIP, std::string coordPort, std::string port, int synchID);
 
 
 void Heartbeat(std::string coordinatorIp, std::string coordinatorPort, ServerInfo serverInfo, int syncID);
