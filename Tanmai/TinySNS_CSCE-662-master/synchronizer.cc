@@ -1,12 +1,23 @@
-#include <ctime>
+// NOTE: This starter code contains a primitive implementation using the default RabbitMQ protocol.
+// You are recommended to look into how to make the communication more efficient,
+// for example, modifying the type of exchange that publishes to one or more queues, or
+// throttling how often a process consumes messages from a queue so other consumers are not starved for messages
+// All the functions in this implementation are just suggestions and you can make reasonable changes as long as
+// you continue to use the communication methods that the assignment requires between different processes
 
+#include <bits/fs_fwd.h>
+#include <ctime>
 #include <google/protobuf/timestamp.pb.h>
 #include <google/protobuf/duration.pb.h>
 #include <chrono>
+#include <semaphore.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unordered_map>
 #include <vector>
+#include <unordered_set>
 #include <filesystem>
+#include <fcntl.h>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -14,39 +25,49 @@
 #include <thread>
 #include <mutex>
 #include <stdlib.h>
+#include <stdio.h>
+#include <cstdlib>
 #include <unistd.h>
 #include <algorithm>
 #include <google/protobuf/util/time_util.h>
 #include <grpc++/grpc++.h>
-#include<glog/logging.h>
-#include <stdlib.h>
-
+#include <glog/logging.h>
 #include "sns.grpc.pb.h"
+#include "sns.pb.h"
 #include "coordinator.grpc.pb.h"
+#include "coordinator.pb.h"
+
+#include <amqp.h>
+#include <amqp_tcp_socket.h>
+#include <jsoncpp/json/json.h>
+
+#define log(severity, msg) \
+    LOG(severity) << msg;  \
+    google::FlushLogFiles(google::severity);
 
 namespace fs = std::filesystem;
-#define log(severity, msg) LOG(severity) << msg; google::FlushLogFiles(google::severity); 
 
-using google::protobuf::Timestamp;
-using google::protobuf::Duration;
-using grpc::Server;
-using grpc::ServerBuilder;
-using grpc::ClientContext;
-using grpc::ServerContext;
-using grpc::ServerReader;
-using grpc::ServerReaderWriter;
-using grpc::ServerWriter;
-using grpc::Status;
 using csce438::CoordService;
 using csce438::ServerInfo;
 using csce438::Confirmation;
 using csce438::ID;
 using csce438::AllSyncServers;
 using csce438::SynchService;
-using csce438::UserTLFL;
 using csce438::AllData;
 using csce438::Empty;
 using csce438::ID;
+using google::protobuf::Duration;
+using google::protobuf::Timestamp;
+using grpc::ClientContext;
+using grpc::Server;
+using grpc::ServerBuilder;
+using grpc::ServerContext;
+using grpc::ServerReader;
+using grpc::ServerReaderWriter;
+using grpc::ServerWriter;
+using grpc::Status;
+// tl = timeline, fl = follow list
+using csce438::TLFL;
 
 int synchID = 1;
 std::vector<std::string> get_lines_from_file(std::string,bool);

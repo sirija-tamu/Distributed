@@ -31,7 +31,7 @@ GRPC_CPP_PLUGIN = grpc_cpp_plugin
 GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
 PROTOS_PATH = .
 
-all: system-check tsc tsd coordinator synchronizer
+all: system-check tsc tsd coordinator synchronizer test2
 
 tsc: client.o coordinator.pb.o coordinator.grpc.pb.o sns.pb.o sns.grpc.pb.o tsc.o
 	$(CXX) $^ $(LDFLAGS) -g -o $@
@@ -45,6 +45,12 @@ coordinator: coordinator.pb.o coordinator.grpc.pb.o coordinator.o
 synchronizer: coordinator.pb.o coordinator.grpc.pb.o sns.pb.o sns.grpc.pb.o synchronizer.o
 	$(CXX) $^ $(LDFLAGS) -g -o $@
 
+# Targets for test1, test2, and test3
+test2: testcase2.cc
+	$(CXX) -o test2 testcase2.cc
+
+
+
 .PRECIOUS: %.grpc.pb.cc
 %.grpc.pb.cc: %.proto
 	$(PROTOC) -I $(PROTOS_PATH) --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) $<
@@ -54,7 +60,7 @@ synchronizer: coordinator.pb.o coordinator.grpc.pb.o sns.pb.o sns.grpc.pb.o sync
 	$(PROTOC) -I $(PROTOS_PATH) --cpp_out=. $<
 
 clean:
-	rm -f *.txt *.o *.pb.cc *.pb.h tsc tsd coordinator synchronizer
+	rm -f *.txt *.o *.pb.cc *.pb.h tsc tsd coordinator synchronizer test2
 
 reset:
 	rm -f *.txt
