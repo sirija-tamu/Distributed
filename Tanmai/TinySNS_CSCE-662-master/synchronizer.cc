@@ -67,7 +67,7 @@ using grpc::ServerReaderWriter;
 using grpc::ServerWriter;
 using grpc::Status;
 // tl = timeline, fl = follow list
-using csce438::TLFL;
+using csce438::UserTLFL;
 
 int synchID = 1;
 std::vector<std::string> get_lines_from_file(std::string,bool);
