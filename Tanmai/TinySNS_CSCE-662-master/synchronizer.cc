@@ -78,7 +78,7 @@ std::string clusterSubdirectory;
 std::vector<std::string> otherHosts;
 std::unordered_map<std::string, int> timelineLengths;
 
-std::vector<std::string> get_lines_from_file(std::string,bool);
+std::vector<std::string> get_lines_from_file(std::string);
 std::vector<std::string> get_all_users_func(int);
 std::vector<std::string> get_tl_or_fl(int synchID, int clientID, bool tl);
 std::vector<std::string> getFollowersOfUser(int);
@@ -95,18 +95,16 @@ std::unique_ptr<csce438::CoordService::Stub> coordinator_stub_;
 class SynchServiceImpl final : public SynchService::Service {
     Status GetUserTLFL(ServerContext * context, const ID * id, AllData * alldata) override {
         log(INFO, " Serving REQ for GetUserTLFL");
-        std::string master_path = "cluster_" + std::to_string(clusterID) + "/1/" + std::to_string(clientID);
-        std::vector<std::string> current_users = get_lines_from_file(master_path + "_currentusers.txt", false);
-        for(int s:current_users) {
+        std::string master_path = "cluster_" + std::to_string(clusterID) + "/1/";
+        std::vector<std::string> current_users = get_lines_from_file(master_path + "currentusers.txt");
+        
+        for(auto s :current_users) {
             UserTLFL usertlfl;
             usertlfl.set_user(s); 
-            std::vector<std::string> tl  = get_tl_or_fl(synchID, s, true);
-            std::vector<std::string> flr = get_tl_or_fl(synchID, s, false);
+            std::vector<std::string> tl  = get_tl_or_fl(synchID, std::stoi(s), true);
+            std::vector<std::string> flr = get_tl_or_fl(synchID, std::stoi(s), false);
             for(auto timeline:tl){
                 usertlfl.add_tl(timeline);
-            }
-            for(auto follow:flw){
-                usertlfl.add_flw(follow);
             }
             for (auto flr : flr) {
               usertlfl.add_flr(flr);
@@ -175,7 +173,7 @@ int main(int argc, char **argv)
     serverInfo.set_port(port);
     serverInfo.set_type("synchronizer");
     serverInfo.set_serverid(synchID);
-    serverInfo.set_clusterid(clusterID);
+    serverInfo.set_clusterid(std::to_string(clusterID));
     Heartbeat(coordIP, coordPort, serverInfo, synchID);
 
     RunServer(coordIP, coordPort, port, synchID);
@@ -225,13 +223,13 @@ void run_synchronizer(std::string coordIP, std::string coordPort, std::string po
             )));
       }
     }
-
-    std::string master_path = "cluster_" + std::to_string(clusterID) + "/1/" + std::to_string(clientID);
+    
+    std::string master_path = "cluster_" + std::to_string(synchID) + "/1/";
 
     while(true) {
         AllData all;
-        std::vector<std::string> myusers = get_lines_from_file(master_path + "_currentusers.txt",false);
-        std::vector<std::string> allusers = get_lines_from_file(master_path + "_allusers.txt",false);
+        std::vector<std::string> myusers = get_lines_from_file(master_path+"currentusers.txt");
+        std::vector<std::string> allusers = get_lines_from_file(master_path+"allusers.txt");
         for (auto & stub : syncstubs) {
           ClientContext ctx;
           stub->GetUserTLFL(&ctx, id, &all);
@@ -275,7 +273,7 @@ void run_synchronizer(std::string coordIP, std::string coordPort, std::string po
             }
           }
         }
-      std::ofstream allwrite( master_path + "_allusers.txt", std::ios::out);
+      std::ofstream allwrite( master_path + "allusers.txt", std::ios::out);
       for (auto &al : allusers) {
         allwrite << al << "\n";
       }

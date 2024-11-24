@@ -86,15 +86,15 @@ int main() {
     // Start 3 Synchronizers
     create_tmux_session("SYNC1");
     wait(1);
-    send_command_to_tmux("SYNC1", "./synchronizer -j 9090 -n 1 -p 1234");
+    send_command_to_tmux("SYNC1", "./synchronizer -h localhost -k 9090 -p 1234 -i 1");
 
     create_tmux_session("SYNC2");
     wait(1);
-    send_command_to_tmux("SYNC2", "./synchronizer -j 9090 -n 2 -p 1235");
+    send_command_to_tmux("SYNC2", "./synchronizer  -h localhost -k 9090 -p 1235 -i 2");
 
     create_tmux_session("SYNC3");
     wait(1);
-    send_command_to_tmux("SYNC3", "./synchronizer -j 9090 -n 3 -p 1236");
+    send_command_to_tmux("SYNC3", "./synchronizer  -h localhost -k 9090 -p 1236 -i 3");
 
     // Start 3 Clients
     create_tmux_session("CLIENT1");

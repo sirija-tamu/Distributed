@@ -48,6 +48,8 @@
 #include "coordinator.grpc.pb.h"
 #include <glog/logging.h>
 #include "sns.grpc.pb.h"
+#include <filesystem>
+namespace fs = std::filesystem;
 
 #define log(severity, msg) LOG(severity) << msg; google::FlushLogFiles(google::severity); 
 
@@ -134,14 +136,14 @@ std::string getfilename(std::string clientid = "current", bool getother=false) {
     if (server_type == "master") {
       s_id = "/1/";
     }
-    std::string path = "cluster_" + std::to_string(serverInfo.clusterid()) + s_id + clientid;
+    std::string path = "cluster_" + serverInfo.clusterid() + s_id;
     if(clientid == "current") {
-      return path + "_currentusers.txt";
+      return path + "currentusers.txt";
     }
     else if (clientid == "all") {
-      return path + "_allusers.txt";
+      return path + "allusers.txt";
     } 
-    return path;
+    return path + clientid;
 }
 
 void copier(){
@@ -500,6 +502,35 @@ private:
     }
 };
 
+void createClusterDirectories(std::string clusterID) {
+    // Construct the base path
+    std::string basePath = "cluster_" + clusterID;
+
+    // Construct paths for /1/ and /2/
+    std::string path1 = basePath + "/1/";
+    std::string path2 = basePath + "/2/";
+
+    try {
+        // Create /1/ directory
+        if (!fs::exists(path1)) {
+            fs::create_directories(path1);
+            std::cout << "Directory created: " << path1 << std::endl;
+        } else {
+            std::cout << "Directory already exists: " << path1 << std::endl;
+        }
+
+        // Create /2/ directory
+        if (!fs::exists(path2)) {
+            fs::create_directories(path2);
+            std::cout << "Directory created: " << path2 << std::endl;
+        } else {
+            std::cout << "Directory already exists: " << path2 << std::endl;
+        }
+    } catch (const std::exception &e) {
+        std::cerr << "Error creating directories: " << e.what() << std::endl;
+    }
+}
+
 int main(int argc, char** argv) {
   std::string port = "10000";
   std::string clusterId = "1";
@@ -530,6 +561,8 @@ int main(int argc, char** argv) {
         return 1; // Exit with an error code
     }
   }
+  
+  createClusterDirectories(clusterId);
   
   std::string log_file_name = std::string("cluster-") + clusterId + std::string("-server-") + serverId + "-port-" + port;
   google::InitGoogleLogging(log_file_name.c_str());

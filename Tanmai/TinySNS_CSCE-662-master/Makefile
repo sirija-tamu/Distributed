@@ -61,6 +61,7 @@ test2: testcase2.cc
 
 clean:
 	rm -f *.txt *.o *.pb.cc *.pb.h tsc tsd coordinator synchronizer test2
+	rm -rf cluster_*/
 
 reset:
 	rm -f *.txt
