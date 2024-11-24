@@ -47,10 +47,10 @@
 
 namespace fs = std::filesystem;
 
-using csce438::CoordService;
-using csce438::ServerInfo;
 using csce438::Confirmation;
+using csce438::CoordService;
 using csce438::ID;
+using csce438::ServerInfo;
 using csce438::AllSyncServers;
 using csce438::SynchService;
 using csce438::AllData;
@@ -70,19 +70,26 @@ using grpc::Status;
 using csce438::UserTLFL;
 
 int synchID = 1;
+int clusterID = 1;
+bool isMaster = false;
+int total_number_of_registered_synchronizers = 6; // update this by asking coordinator
+std::string coordAddr;
+std::string clusterSubdirectory;
+std::vector<std::string> otherHosts;
+std::unordered_map<std::string, int> timelineLengths;
+
 std::vector<std::string> get_lines_from_file(std::string,bool);
-void run_synchronizer(std::string,std::string,std::string,int);
 std::vector<std::string> get_all_users_func(int);
 std::vector<std::string> get_tl_or_fl(int synchID, std::string clientID, std::string name);
+std::vector<std::string> getFollowersOfUser(int);
+bool file_contains_user(std::string filename, std::string user);
 std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> others = {};
 std::vector<std::string> appender(std::vector<std::string> &v, const google::protobuf::RepeatedPtrField<std::string>&  data);
 
-bool file_exists(const std::string& filename) {
-    std::ifstream file(filename);
-    bool good = file.good();
-    file.close();
-    return good;
-}
+
+void Heartbeat(std::string coordinatorIp, std::string coordinatorPort, ServerInfo serverInfo, int syncID);
+
+std::unique_ptr<csce438::CoordService::Stub> coordinator_stub_;
 
 class SynchServiceImpl final : public SynchService::Service {
     Status GetUserTLFL(ServerContext * context, const ID * id, AllData * alldata) override {
@@ -365,4 +372,26 @@ std::vector<std::string> get_tl_or_fl(int synchID, std::string clientID, std::st
     }else{
         return s;
     }
+}
+
+std::vector<std::string> getFollowersOfUser(int ID)
+{
+    std::vector<std::string> followers;
+    std::string clientID = std::to_string(ID);
+    std::vector<std::string> usersInCluster = get_all_users_func(synchID);
+
+    for (auto userID : usersInCluster)
+    { // Examine each user's following file
+        std::string file = "cluster_" + std::to_string(clusterID) + "/" + clusterSubdirectory + "/" + userID + "_follow_list.txt";
+        std::string semName = "/" + std::to_string(clusterID) + "_" + clusterSubdirectory + "_" + userID + "_follow_list.txt";
+        sem_t *fileSem = sem_open(semName.c_str(), O_CREAT);
+        // std::cout << "Reading file " << file << std::endl;
+        if (file_contains_user(file, clientID))
+        {
+            followers.push_back(userID);
+        }
+        sem_close(fileSem);
+    }
+
+    return followers;
 }
