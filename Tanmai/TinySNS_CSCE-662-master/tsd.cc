@@ -127,19 +127,21 @@ bool isincurrent(std::string username) {
 }
 
 std::string getfilename(std::string clientid = "current", bool getother=false) {
-    std::string n = "";
     std::string server_type = ::serverInfo.type();
     if (getother) 
       server_type = (server_type == "master") ? "slave"  : "master";
+    std::string s_id = "/2/";
+    if (server_type == "master") {
+      s_id = "/1/";
+    }
+    std::string path = "cluster_" + std::to_string(serverInfo.clusterid()) + s_id + clientid;
     if(clientid == "current") {
-      n = "./" + server_type + "_" + ::serverInfo.clusterid() + "_currentusers.txt";
+      return path + "_currentusers.txt";
     }
     else if (clientid == "all") {
-      n = "./" + server_type + "_" + ::serverInfo.clusterid() + "_allusers.txt";
-    } else {
-      n = "./" + server_type + "_" + ::serverInfo.clusterid() + "_" + clientid;
-    }
-    return n;
+      return path + "_allusers.txt";
+    } 
+    return path;
 }
 
 void copier(){

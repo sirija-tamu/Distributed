@@ -80,7 +80,7 @@ std::unordered_map<std::string, int> timelineLengths;
 
 std::vector<std::string> get_lines_from_file(std::string,bool);
 std::vector<std::string> get_all_users_func(int);
-std::vector<std::string> get_tl_or_fl(int synchID, std::string clientID, std::string name);
+std::vector<std::string> get_tl_or_fl(int synchID, int clientID, bool tl);
 std::vector<std::string> getFollowersOfUser(int);
 bool file_contains_user(std::string filename, std::string user);
 std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> others = {};
@@ -95,13 +95,13 @@ std::unique_ptr<csce438::CoordService::Stub> coordinator_stub_;
 class SynchServiceImpl final : public SynchService::Service {
     Status GetUserTLFL(ServerContext * context, const ID * id, AllData * alldata) override {
         log(INFO, " Serving REQ for GetUserTLFL");
-        std::vector<std::string> current_users = get_lines_from_file("./master_"+std::to_string(synchID)+"_currentusers.txt",false);
-        for(auto s:current_users) {
+        std::string master_path = "cluster_" + std::to_string(clusterID) + "/1/" + std::to_string(clientID);
+        std::vector<std::string> current_users = get_lines_from_file(master_path + "_currentusers.txt", false);
+        for(int s:current_users) {
             UserTLFL usertlfl;
             usertlfl.set_user(s); 
-            std::vector<std::string> tl  = get_tl_or_fl(synchID, s, "tl");
-            std::vector<std::string> flw = get_tl_or_fl(synchID, s, "flw");
-            std::vector<std::string> flr = get_tl_or_fl(synchID, s, "flr");
+            std::vector<std::string> tl  = get_tl_or_fl(synchID, s, true);
+            std::vector<std::string> flr = get_tl_or_fl(synchID, s, false);
             for(auto timeline:tl){
                 usertlfl.add_tl(timeline);
             }
@@ -136,34 +136,50 @@ void RunServer(std::string coordIP, std::string coordPort, std::string port_no, 
   t1.join();
 }
 
-int main(int argc, char** argv) {
-  
-  int opt = 0;
-  std::string coordIP = "localhost";
-  std::string coordPort = "9090";
-  std::string port = "1234";
+int main(int argc, char **argv)
+{
+    int opt = 0;
+    std::string coordIP;
+    std::string coordPort;
+    std::string port = "3029";
 
-  while ((opt = getopt(argc, argv, "h:j:p:n:")) != -1){
-    switch(opt) {
-      case 'h':
-          coordIP = optarg;
-          break;
-      case 'j':
-          coordPort = optarg;
-          break;
-      case 'p':
-          port = optarg;
-          break;
-      case 'n':
-          synchID = std::stoi(optarg);
-          break;
-      default:
-	         std::cerr << "Invalid Command Line Argument\n";
+    while ((opt = getopt(argc, argv, "h:k:p:i:")) != -1)
+    {
+        switch (opt)
+        {
+        case 'h':
+            coordIP = optarg;
+            break;
+        case 'k':
+            coordPort = optarg;
+            break;
+        case 'p':
+            port = optarg;
+            break;
+        case 'i':
+            synchID = std::stoi(optarg);
+            break;
+        default:
+            std::cerr << "Invalid Command Line Argument\n";
+        }
     }
-  }
 
-  RunServer(coordIP, coordPort, port, synchID);
-  return 0;
+    std::string log_file_name = std::string("synchronizer-") + port;
+    google::InitGoogleLogging(log_file_name.c_str());
+    log(INFO, "Logging Initialized. Server starting...");
+
+    coordAddr = coordIP + ":" + coordPort;
+    clusterID = ((synchID - 1) % 3) + 1;
+    ServerInfo serverInfo;
+    serverInfo.set_hostname("localhost");
+    serverInfo.set_port(port);
+    serverInfo.set_type("synchronizer");
+    serverInfo.set_serverid(synchID);
+    serverInfo.set_clusterid(clusterID);
+    Heartbeat(coordIP, coordPort, serverInfo, synchID);
+
+    RunServer(coordIP, coordPort, port, synchID);
+    return 0;
 }
 
 void run_synchronizer(std::string coordIP, std::string coordPort, std::string port, int synchID) {
@@ -210,10 +226,12 @@ void run_synchronizer(std::string coordIP, std::string coordPort, std::string po
       }
     }
 
+    std::string master_path = "cluster_" + std::to_string(clusterID) + "/1/" + std::to_string(clientID);
+
     while(true) {
         AllData all;
-        std::vector<std::string> myusers = get_lines_from_file("./master_"+std::to_string(synchID)+"_currentusers.txt",false);
-        std::vector<std::string> allusers = get_lines_from_file("./master_"+std::to_string(synchID)+"_allusers.txt",false);
+        std::vector<std::string> myusers = get_lines_from_file(master_path + "_currentusers.txt",false);
+        std::vector<std::string> allusers = get_lines_from_file(master_path + "_allusers.txt",false);
         for (auto & stub : syncstubs) {
           ClientContext ctx;
           stub->GetUserTLFL(&ctx, id, &all);
@@ -234,7 +252,7 @@ void run_synchronizer(std::string coordIP, std::string coordPort, std::string po
             diff = appender(otherClusterUser["flw"],d.flw());
             for (auto &currentUserBeingFollowed : diff) {              
               if (find(myusers.begin(),myusers.end(), currentUserBeingFollowed) != myusers.end()) {
-                std::string fname ="./master_"+std::to_string(synchID)+"_"+currentUserBeingFollowed+"_follower.txt";
+                std::string fname = master_path + "_"+currentUserBeingFollowed+"_follower.txt";
                 std::ofstream oflr(fname, std::ios::app);
                 oflr << d.user() << "\n";
                 oflr.close();
@@ -248,7 +266,7 @@ void run_synchronizer(std::string coordIP, std::string coordPort, std::string po
             for (auto currentuser : myusers) {
               for (auto &msg : diff) {
                 if (find(vec.begin(), vec.end(), currentuser) != vec.end()) {
-                  std::string tfile = "./master_"+std::to_string(synchID)+"_"+currentuser+"_timeline.txt";
+                  std::string tfile = master_path +"_timeline.txt";
                   std::ofstream timeline(tfile, std::ios::app);
                   timeline << msg+"\n" << "\n";
                   timeline.close();
@@ -257,7 +275,7 @@ void run_synchronizer(std::string coordIP, std::string coordPort, std::string po
             }
           }
         }
-      std::ofstream allwrite("./master_"+std::to_string(synchID)+"_allusers.txt", std::ios::out);
+      std::ofstream allwrite( master_path + "_allusers.txt", std::ios::out);
       for (auto &al : allusers) {
         allwrite << al << "\n";
       }
@@ -278,99 +296,116 @@ std::vector<std::string> appender(std::vector<std::string> &v, const google::pro
   return diff;
 }
 
-std::vector<std::string> get_lines_from_file(std::string filename, bool skip=false) {
-  // std::cout << " opening: " << filename << "\n";
-  std::vector<std::string> users;
-  std::string user;
-  std::ifstream file; 
-  file.open(filename);
-  if(file.peek() == std::ifstream::traits_type::eof()){
-    //return empty vector if empty file
-    //std::cout<<"returned empty vector bc empty file"<<std::endl;
+std::vector<std::string> get_lines_from_file(std::string filename)
+{
+    std::vector<std::string> users;
+    std::string user;
+    std::ifstream file;
+    std::string semName = "/" + std::to_string(clusterID) + "_" + clusterSubdirectory + "_" + filename;
+    sem_t *fileSem = sem_open(semName.c_str(), O_CREAT);
+    file.open(filename);
+    if (file.peek() == std::ifstream::traits_type::eof())
+    {
+        // return empty vector if empty file
+        // std::cout<<"returned empty vector bc empty file"<<std::endl;
+        file.close();
+        sem_close(fileSem);
+        return users;
+    }
+    while (file)
+    {
+        getline(file, user);
+
+        if (!user.empty())
+            users.push_back(user);
+    }
+
     file.close();
+    sem_close(fileSem);
+
     return users;
-  }
-  int i = 0;
-  while(file){
-    getline(file,user);
-    if(!user.empty() && (!skip || i %2 == 0))
-      users.push_back(user);
-    i += 1;
-  } 
-
-  file.close();
-
-  return users;
 }
 
-bool file_contains_user(std::string filename, std::string user) {
+void Heartbeat(std::string coordinatorIp, std::string coordinatorPort, ServerInfo serverInfo, int syncID)
+{
+    // For the synchronizer, a single initial heartbeat RPC acts as an initialization method which
+    // servers to register the synchronizer with the coordinator and determine whether it is a master
+
+    log(INFO, "Sending initial heartbeat to coordinator");
+    std::string coordinatorInfo = coordinatorIp + ":" + coordinatorPort;
+    std::unique_ptr<CoordService::Stub> stub = std::unique_ptr<CoordService::Stub>(CoordService::NewStub(grpc::CreateChannel(coordinatorInfo, grpc::InsecureChannelCredentials())));
+
+    // send a heartbeat to the coordinator, which registers your follower synchronizer as either a master or a slave
+
+    // YOUR CODE HERE
+}
+
+bool file_contains_user(std::string filename, std::string user)
+{
     std::vector<std::string> users;
-    //check username is valid
+    // check username is valid
+    std::string semName = "/" + std::to_string(clusterID) + "_" + clusterSubdirectory + "_" + filename;
+    sem_t *fileSem = sem_open(semName.c_str(), O_CREAT);
     users = get_lines_from_file(filename);
-    for(int i = 0; i<users.size(); i++){
-      //std::cout<<"Checking if "<<user<<" = "<<users[i]<<std::endl;
-      if(user == users[i]){
-        //std::cout<<"found"<<std::endl;
-        return true;
-      }
+    for (int i = 0; i < users.size(); i++)
+    {
+        // std::cout<<"Checking if "<<user<<" = "<<users[i]<<std::endl;
+        if (user == users[i])
+        {
+            // std::cout<<"found"<<std::endl;
+            sem_close(fileSem);
+            return true;
+        }
     }
-    //std::cout<<"not found"<<std::endl;
+    // std::cout<<"not found"<<std::endl;
+    sem_close(fileSem);
     return false;
 }
 
-std::vector<std::string> get_all_users_func(int synchID){
-  
-    //read all_users file master and client for correct serverID
-    std::string master_users_file = "./master_"+std::to_string(synchID)+"_all_users.txt";
-    std::string slave_users_file = "./slave_"+std::to_string(synchID)+"_all_users.txt";
-    //take longest list and package into AllUsers message
+std::vector<std::string> get_all_users_func(int synchID)
+{
+    // read all_users file master and client for correct serverID
+    // std::string master_users_file = "./master"+std::to_string(synchID)+"/all_users";
+    // std::string slave_users_file = "./slave"+std::to_string(synchID)+"/all_users";
+    std::string clusterID = std::to_string(((synchID - 1) % 3) + 1);
+    std::string master_users_file = "./cluster_" + clusterID + "/1/all_users.txt";
+    std::string slave_users_file = "./cluster_" + clusterID + "/2/all_users.txt";
+    // take longest list and package into AllUsers message
     std::vector<std::string> master_user_list = get_lines_from_file(master_users_file);
     std::vector<std::string> slave_user_list = get_lines_from_file(slave_users_file);
 
-    if(master_user_list.size() >= slave_user_list.size())
+    if (master_user_list.size() >= slave_user_list.size())
         return master_user_list;
     else
         return slave_user_list;
 }
 
-void write_lines_to_file(const std::string& filename, const std::vector<std::string>& lines) {
-    std::ofstream file(filename);
-
-    if (file.is_open()) {
-        for (const std::string& line : lines) {
-            file << line << '\n';
-        }
-
-        file.close();
-    } else {
-        std::cerr << "Unable to open file: " << filename << std::endl;
+std::vector<std::string> get_tl_or_fl(int synchID, int clientID, bool tl)
+{
+    // std::string master_fn = "./master"+std::to_string(synchID)+"/"+std::to_string(clientID);
+    // std::string slave_fn = "./slave"+std::to_string(synchID)+"/" + std::to_string(clientID);
+    std::string master_fn = "cluster_" + std::to_string(clusterID) + "/1/" + std::to_string(clientID);
+    std::string slave_fn = "cluster_" + std::to_string(clusterID) + "/2/" + std::to_string(clientID);
+    if (tl)
+    {
+        master_fn.append("_timeline.txt");
+        slave_fn.append("_timeline.txt");
     }
-}
-
-std::vector<std::string> get_tl_or_fl(int synchID, std::string clientID, std::string name){
-    std::string master_fn = "./master_"+std::to_string(synchID)+"_" + clientID;
-    std::string slave_fn = "./slave_"+std::to_string(synchID)+"_"   +  clientID;
-    bool skip = false;
-    if(name == "tl") {
-        master_fn.append(".txt");
-        slave_fn.append(".txt");
-        skip = true;
-    }else if (name == "flw") {
-        master_fn.append("_following.txt");
-        slave_fn.append("_following.txt");
-    } else if (name == "flr") {
-        master_fn.append("_follower.txt");
-        slave_fn.append("_follower.txt");
-    } else if (name == "current") {
-        master_fn.append("_currentuser.txt");
-        slave_fn.append("_currentuser.txt");
+    else
+    {
+        master_fn.append("_followers.txt");
+        slave_fn.append("_followers.txt");
     }
-    std::vector<std::string> m = get_lines_from_file(master_fn,skip);
-    std::vector<std::string> s = get_lines_from_file(slave_fn,skip);
 
-    if(m.size()>=s.size()){
+    std::vector<std::string> m = get_lines_from_file(master_fn);
+    std::vector<std::string> s = get_lines_from_file(slave_fn);
+
+    if (m.size() >= s.size())
+    {
         return m;
-    }else{
+    }
+    else
+    {
         return s;
     }
 }
