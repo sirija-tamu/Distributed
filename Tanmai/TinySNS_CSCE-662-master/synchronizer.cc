@@ -80,7 +80,7 @@ std::unordered_map<std::string, int> timelineLengths;
 
 std::vector<std::string> get_lines_from_file(std::string);
 std::vector<std::string> get_all_users_func(int);
-std::vector<std::string> get_tl_or_fl(int synchID, int clientID, bool tl);
+std::vector<std::string> get_tl_or_fl(int synchID, int clientID, std::string name);
 std::vector<std::string> getFollowersOfUser(int);
 bool file_contains_user(std::string filename, std::string user);
 std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> others = {};
@@ -101,10 +101,14 @@ class SynchServiceImpl final : public SynchService::Service {
         for(auto s :current_users) {
             UserTLFL usertlfl;
             usertlfl.set_user(s); 
-            std::vector<std::string> tl  = get_tl_or_fl(synchID, std::stoi(s), true);
-            std::vector<std::string> flr = get_tl_or_fl(synchID, std::stoi(s), false);
+            std::vector<std::string> tl  = get_tl_or_fl(synchID,  std::stoi(s), "tl");
+            std::vector<std::string> flw = get_tl_or_fl(synchID,  std::stoi(s), "flw");
+            std::vector<std::string> flr = get_tl_or_fl(synchID,  std::stoi(s), "flr");
             for(auto timeline:tl){
                 usertlfl.add_tl(timeline);
+            }
+            for(auto follow:flw){
+                usertlfl.add_flw(follow);
             }
             for (auto flr : flr) {
               usertlfl.add_flr(flr);
@@ -250,7 +254,7 @@ void run_synchronizer(std::string coordIP, std::string coordPort, std::string po
             diff = appender(otherClusterUser["flw"],d.flw());
             for (auto &currentUserBeingFollowed : diff) {              
               if (find(myusers.begin(),myusers.end(), currentUserBeingFollowed) != myusers.end()) {
-                std::string fname = master_path + "_"+currentUserBeingFollowed+"_follower.txt";
+                std::string fname = master_path + "_"+currentUserBeingFollowed+"_followers.txt";
                 std::ofstream oflr(fname, std::ios::app);
                 oflr << d.user() << "\n";
                 oflr.close();
@@ -378,21 +382,24 @@ std::vector<std::string> get_all_users_func(int synchID)
         return slave_user_list;
 }
 
-std::vector<std::string> get_tl_or_fl(int synchID, int clientID, bool tl)
-{
+std::vector<std::string> get_tl_or_fl(int synchID, int clientID, std::string name){
     // std::string master_fn = "./master"+std::to_string(synchID)+"/"+std::to_string(clientID);
     // std::string slave_fn = "./slave"+std::to_string(synchID)+"/" + std::to_string(clientID);
     std::string master_fn = "cluster_" + std::to_string(clusterID) + "/1/" + std::to_string(clientID);
     std::string slave_fn = "cluster_" + std::to_string(clusterID) + "/2/" + std::to_string(clientID);
-    if (tl)
-    {
+    if(name == "tl") {
         master_fn.append("_timeline.txt");
         slave_fn.append("_timeline.txt");
-    }
-    else
-    {
+        skip = true;
+    }else if (name == "flw") {
+        master_fn.append("_following.txt");
+        slave_fn.append("_following.txt");
+    } else if (name == "flr") {
         master_fn.append("_followers.txt");
         slave_fn.append("_followers.txt");
+    } else if (name == "current") {
+        master_fn.append("_currentuser.txt");
+        slave_fn.append("_currentuser.txt");
     }
 
     std::vector<std::string> m = get_lines_from_file(master_fn);
