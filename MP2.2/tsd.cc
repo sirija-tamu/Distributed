@@ -146,8 +146,7 @@ std::string getfilename(std::string clientid = "current", bool getother=false) {
     std::string s_id = "/1/";
     if (getother) 
       server_type = (server_type == "master") ? "slave"  : "master";
-      s_id = "/2/";
-    std::string path = "cluster_" + serverInfo.clusterid() + s_id;
+    std::string path = "cluster_" + std::to_string(serverInfo.clusterid())+ s_id;
     if(clientid == "current") {
       return path + "currentusers.txt";
     }
@@ -338,11 +337,7 @@ class SNSServiceImpl final : public SNSService::Service {
               std::cout << " prev current " << c << "\n";
           }
           c->stream = nullptr;
-          
-          std::cout << " User  not found in getClient " << "\n";
           if(current_users.find(username) == current_users.end()) {
-              std::cout << " User is writing usename in current_users file" << "\n";
-              std::cout << getfilename("current") << "\n";
               std::ofstream current(getfilename("current"),std::ios::app|std::ios::out|std::ios::in);
               current << username << "\n";
               current.close();
@@ -351,7 +346,6 @@ class SNSServiceImpl final : public SNSService::Service {
               all << username << "\n";
               all.close();
           }
-          std::cout << " Done " << "\n";
         } else {
           std::cout << " User found in getClient " << c << "\n";
           Client *user = getClient(username);
@@ -367,8 +361,7 @@ class SNSServiceImpl final : public SNSService::Service {
               user->connected = true;
           }
         }
-        std::cout<<"Login DOneeeee"<<"\n";
-
+        
         return Status::OK;
     }
 
@@ -463,7 +456,7 @@ IReply Heartbeat(std::string clusterId, std::string serverId, std::string hostna
     if (isHeartbeat){
         context.AddMetadata("heartbeat", "Hello"); // adding the server's clusterId in the metadata so the coordinator can know
     } else {
-        serverInfo.set_type("server");
+        serverinfo.set_type("server");
     }
 
     context.AddMetadata("clusterid", clusterId); // adding the server's clusterId in the metadata so the coordinator can know
@@ -474,8 +467,6 @@ IReply Heartbeat(std::string clusterId, std::string serverId, std::string hostna
     serverinfo.set_hostname(hostname);
     serverinfo.set_port(port);
     serverinfo.set_clusterid(std::atoi(clusterId.c_str()));
-    std::cout<<"Setting cluster Id"<<serverInfo.clusterid()<<"\n";
-
     grpc::Status status = coordinator_stub_->Heartbeat(&context, serverinfo, &confirmation);
     if (status.ok()){
         ire.grpc_status = status;
@@ -686,7 +677,8 @@ int main(int argc, char** argv) {
     serverInfo.set_serverid(std::atoi(serverId.c_str()));
     serverInfo.set_hostname("localhost");
     serverInfo.set_port(port);
-    serverInfo.set_clusterid(std::atoi(clusterId.c_str()));
+    serverInfo.set_clusterid(std::stoi(clusterId)); // Convert string to int using std::stoi
+    std::cout << serverInfo.clusterid() << "\n";
     /* RunServer(port); */
     // changing this call so i can pass other auxilliary variables to be able to communicate with the server
     RunServer(clusterId, serverId, coordinatorIP, coordinatorPort, port);
