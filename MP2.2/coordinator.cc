@@ -59,6 +59,7 @@ std::vector<zNode*> cluster3;
 
 // creating a vector of vectors containing znodes
 std::vector<std::vector<zNode*>> clusters = {cluster1, cluster2, cluster3};
+std::vector<ServerInfo> syncServers;
 
 
 //func declarations
@@ -133,6 +134,13 @@ class CoordServiceImpl final : public CoordService::Service {
 
                 zNode* curZ = clusters[intClusterid - 1][curIndex];
                 curZ->last_heartbeat = getTimeNow();
+                // Master is down, Slave is now master
+                if (curZ->type == "slave" && clusters[intClusterid-1][0]->type == "down") {
+                        z->type = "master";
+                        clusters[intClusterid-1][1] = clusters[intClusterid-1][0]; // Move old master to slave
+                        clusters[intClusterid-1][0] = z;
+                        std::cout << "Slave replaced Master for cluster"<< intClusterid <<"/n";
+                }
 
                 v_mutex.unlock();
 
@@ -169,8 +177,23 @@ class CoordServiceImpl final : public CoordService::Service {
                 v_mutex.lock();
 
                 // adding the newly created server to its relevant cluster
-                clusters[intClusterid-1].push_back(z);
-
+                // If it's the first server in the cluster, make it master
+                if(clusters[intClusterid-1].size() == 0) {
+                    z->type = "master"
+                    clusters[intClusterid-1].push_back(z);
+                    std::cout << "Master registered for cluster"<< intClusterid <<"/n";
+                } else {
+                    // If master is down, make it master
+                    if (clusters[intClusterid-1][0]->type == "down") {
+                        z->type = "master"
+                        clusters[intClusterid-1][0] = z; // Update master
+                        std::cout << "Slave replaced Master for cluster"<< intClusterid <<"/n";
+                    } else {
+                        z->type = "slave";
+                        clusters[intClusterid-1].push_back(z); // Add new node as slave
+                        std::cout << "Slave registered for cluster"<< intClusterid <<"/n";
+                    }
+                }
                 v_mutex.unlock();
 
             }
@@ -208,6 +231,22 @@ class CoordServiceImpl final : public CoordService::Service {
             std::cout << "the server that is supposed to serve the client is down!\n";
         }
 
+        return Status::OK;
+    }
+
+    Status GetSyncServers(ServerContext* context, const Empty * empty, AllSyncServers* allSyncServers) override {
+        log(INFO, " REQ for all synchronizer info");
+        for (const ServerInfo sync : syncServers) {
+            allSyncServers->add_servers()->CopyFrom(sync);
+        }
+        return Status::OK;
+    }
+
+    Status RegisterSyncServer(ServerContext* context, const ServerInfo* serverInfo, Confirmation* confirmation) override {
+        syncServers.push_back(*serverInfo);
+        log(INFO, " Registered synchronizer on port="+serverInfo->port() + " clusterID="+serverInfo->clusterid());
+        confirmation->set_type("registered");
+        confirmation->set_status(true);
         return Status::OK;
     }
 
@@ -272,6 +311,8 @@ void checkHeartbeat(){
                     if(!s->missed_heartbeat){
                         s->missed_heartbeat = true;
                         s->last_heartbeat = getTimeNow();
+                        std::cout << " marking this server as down: " << server.type << "\n";
+                        s->type = "down";
                     }
                 }
             }

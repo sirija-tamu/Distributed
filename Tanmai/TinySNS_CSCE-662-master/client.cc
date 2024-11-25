@@ -1,6 +1,5 @@
 #include "client.h"
 
-bool canRetry = true;
 
 void IClient::run()
 {
@@ -12,7 +11,6 @@ void IClient::run()
   displayTitle();
   while (1) {
     std::string cmd = getCommand();
-    
     IReply reply = processCommand(cmd);
     displayCommandReply(cmd, reply);
     if (reply.grpc_status.ok() && reply.comm_status == SUCCESS
@@ -96,14 +94,16 @@ void IClient::displayCommandReply(const std::string& comm, const IReply& reply) 
       std::cout << "Command failed with invalid command\n";
       break;
     case FAILURE_UNKNOWN:
-      std::cout << "Command failed\n";
+      std::cout << "Command failed with unknown reason\n";
       break;
     default:
-      std::cout << "Command failed\n";
+      std::cout << "Invalid status\n";
       break;
     }
   } else {
-    std::cout << "Command failed" << std::endl;
+      /* std::cout << "grpc failed: " << reply.grpc_status.error_message() << std::endl; */
+      // HAVING THIS LINE INSTEAD BECASE TEST CASES PRINT THE LINE BELOW INSTEAD OF THE ACTUAL ERROR
+      std::cout << "Command failed" << std::endl;
   }
 }
 
@@ -133,5 +133,9 @@ void displayPostMessage(const std::string& sender, const std::string& message, s
 {
   std::string t_str(std::ctime(&time));
   t_str[t_str.size()-1] = '\0';
-  std::cout << message << std::endl;
+  std::cout << sender << " (" << t_str << ") >> " << message << std::endl;
+}
+
+void displayReConnectionMessage(const std::string& host, const std::string & port) {
+  std::cout << "Reconnecting to " << host << ":" << port << "..." << std::endl;
 }
