@@ -416,7 +416,7 @@ IReply Heartbeat(std::string clusterId, std::string serverId, std::string hostna
     if (isHeartbeat){
         context.AddMetadata("heartbeat", "Hello"); // adding the server's clusterId in the metadata so the coordinator can know
     } else {
-        serverInfo.set_type("server");
+        serverinfo.set_type("server");
     }
 
     context.AddMetadata("clusterid", clusterId); // adding the server's clusterId in the metadata so the coordinator can know
