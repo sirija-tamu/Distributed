@@ -285,7 +285,7 @@ public:
                 continue;
             }
 
-            std::vector<std::string> timeline = get_tl_or_fl(synchID, clientId, true);
+            std::vector<std::string> timeline = get_tl_or_fl(synchID, clientId,"tl");
             std::vector<std::string> followers = getFollowersOfUser(clientId);
 
             for (const auto &follower : followers)
