@@ -523,6 +523,10 @@ void Heartbeat(std::string coordinatorIp, std::string coordinatorPort, ServerInf
     // send a heartbeat to the coordinator, which registers your follower synchronizer as either a master or a slave
 
     // YOUR CODE HERE
+    ClientContext context;
+    Confirmation confirmation;
+    grpc::Status status = stub->Heartbeat(&context, serverInfo, &confirmation);
+
 }
 
 bool file_contains_user(std::string filename, std::string user)
