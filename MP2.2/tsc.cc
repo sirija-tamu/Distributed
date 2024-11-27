@@ -95,13 +95,12 @@ void Client::SendHeartbeat() {
         sleep(3);
 
         IReply reply = ClientHeartbeat();
-        /* std::cout << "sent heart beat from client to server!\n"; */
+        /*std::cout << "sent heart beat from client to server!\n";*/
         if (!reply.grpc_status.ok()){
             /* std::cout << "GRPC CALL FAILED!\n"; */
             exit(1);
         }
     }
-
 }
 
 int Client::connectTo()
@@ -376,7 +375,8 @@ void Client::Timeline(const std::string& username) {
 
     // Create a stream for bidirectional communication
     std::unique_ptr<ClientReaderWriter<Message, Message>> stream(stub_->Timeline(&context));
-
+    std::string input = "Set Stream";
+    stream->Write(MakeMessage(username, input));
 
     // Writer thread to send messages to the server
     std::thread writer_thread([&]() {

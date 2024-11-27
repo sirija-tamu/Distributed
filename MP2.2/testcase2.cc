@@ -138,8 +138,8 @@ int main() {
     kill_tmux_session("SYNC1");
     kill_tmux_session("SYNC2");
     kill_tmux_session("SYNC3");
-    kill_tmux_session("CLIENT1");
-    kill_tmux_session("CLIENT2");
+    // kill_tmux_session("CLIENT1");
+    // kill_tmux_session("CLIENT2");
     kill_tmux_session("CLIENT3");
     return 0;
 }

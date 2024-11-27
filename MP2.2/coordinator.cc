@@ -122,7 +122,7 @@ class CoordServiceImpl final : public CoordService::Service {
             intClusterid = std::stoi(clusterid);
         }
 
-        std::cout<<"Got Heartbeat! Serverid:"<<serverinfo->type()<<"("<<serverinfo->serverid()<<") and clusterid: (" << clusterid << ")\n";
+        // std::cout<<"Got Heartbeat! Serverid:"<<serverinfo->type()<<"("<<serverinfo->serverid()<<") and clusterid: (" << clusterid << ")\n";
 
         auto it2 = metadata.find("heartbeat");
         if (it2 != metadata.end()) { // HEARTBEAT RECEIVED - Server
@@ -258,7 +258,6 @@ class CoordServiceImpl final : public CoordService::Service {
     }
 
     Status GetAllFollowerServers(ServerContext* context, const ID* id, ServerList* serverList) override {
-        std::cout<<"REQ for all synchronizer info\n";
         for (const ServerInfo& sync : syncServers) { 
             serverList->add_hostname(sync.hostname());  // Add hostname
             serverList->add_port(sync.port());          // Add port

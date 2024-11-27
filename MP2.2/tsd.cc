@@ -208,9 +208,10 @@ class SNSServiceImpl final : public SNSService::Service {
 
         std::string username = request->username();
 
-        /* std::cout << "got a heartbeat from client: " << username << std::endl; */
+        /*std::cout << "got a heartbeat from client: " << username << std::endl;*/
         Client* c = getClient(username);
         if (c != NULL){
+            c->connected = true;
             c->last_heartbeat = getTimeNow();
 
         } else {
@@ -337,6 +338,9 @@ class SNSServiceImpl final : public SNSService::Service {
               std::cout << " prev current " << c << "\n";
           }
           c->stream = nullptr;
+          c->connected = false;
+          c->missed_heartbeat = false;
+          c->last_heartbeat = getTimeNow();
             if(current_users.find(username) == current_users.end()) {
               std::ofstream current(getfilename("current_cluster"),std::ios::app|std::ios::out|std::ios::in);
               current << username << "\n";
@@ -371,9 +375,9 @@ class SNSServiceImpl final : public SNSService::Service {
     log(INFO,"Serving Timeline Request");
     Message message;
     Client *c;
-    while(stream->Read(&message)) {
+        while(stream->Read(&message)) {
       std::string username = message.username();
-      c = getClient(username);
+c = getClient(username);
       c->stream = stream;
       std::string filename = getfilename(username) + "_timeline.txt";
       std::ofstream user_file(filename, std::ios::app|std::ios::out|std::ios::in);
@@ -492,7 +496,7 @@ void sendHeartbeat(std::string clusterId, std::string serverId, std::string host
 
         IReply reply = Heartbeat(clusterId, serverId, "localhost", port, true);
         if (!reply.grpc_status.ok()){
-            exit(1);
+                        exit(1);
         }
     }
 
@@ -502,7 +506,8 @@ void updateTimelineStream() {
   while (true) {
     std::vector<std::string> current_user_list = get_lines_from_file(getfilename("current_cluster"));
     for (auto &c : current_user_list) {
-      std::ifstream ifs((getfilename(c) + "_timeline.txt"), std::ios::in);
+      std::string file_name = getfilename(c) + "_timeline.txt";
+      std::ifstream ifs((file_name), std::ios::in);
       std::string tmp;
       std::vector<std::string> tl;
       while (getline(ifs, tmp))
@@ -518,7 +523,7 @@ void updateTimelineStream() {
         if ((find(user_timeline[c].begin(), user_timeline[c].end(), msg) == user_timeline[c].end()) &&
             find(current_user_list.begin(), current_user_list.end(), name) == current_user_list.end()
             ) {
-          user_timeline[c].push_back(tl[i]);
+                    user_timeline[c].push_back(tl[i]);
           Client* tmp = getClient(c);
           if (tmp != nullptr) {
             if(tmp->connected && tmp->stream) {
@@ -526,6 +531,7 @@ void updateTimelineStream() {
                 Message new_msg;
                 new_msg.set_msg(msg);
                 ServerReaderWriter<Message, Message>* tt = tmp->stream;
+                std::cout<<"new_msg\n";
                 tmp->stream->Write(new_msg);
               } catch(...) {
                 std::cout << "Error in Write\n";
@@ -542,9 +548,6 @@ void updateTimelineStream() {
 void RunServer(std::string clusterId, std::string serverId, std::string coordinatorIP, std::string coordinatorPort, std::string port_no) {
     std::string server_address = "0.0.0.0:"+port_no;
     SNSServiceImpl service;
-
-    // running the heartbeat function to monitor heartbeats from the clients
-    std::thread hb(checkHeartbeat);
 
     ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
@@ -574,7 +577,8 @@ void RunServer(std::string clusterId, std::string serverId, std::string coordina
     for (auto s : current) {
         current_users.insert(s);
     }
-
+    // running the heartbeat function to monitor heartbeats from the clients
+    std::thread hb(checkHeartbeat);
     // running a thread to periodically send a heartbeat to the coordinator
     std::thread myhb(sendHeartbeat, clusterId, serverId, "localhost", port_no);
     std::thread timelineThread(updateTimelineStream);
@@ -592,7 +596,7 @@ void checkHeartbeat(){
         //check clients for heartbeat > 3s
 
         for (const auto& pair : client_db){
-            if(difftime(getTimeNow(),pair.second->last_heartbeat) > 3){
+            if(difftime(getTimeNow(),pair.second->last_heartbeat) > 5){
                 std::cout << "missed heartbeat from client with id " << pair.first << std::endl;
                 if(!pair.second->missed_heartbeat){
                     Client* current = getClient(pair.first);
