@@ -141,17 +141,17 @@ bool isincurrent(std::string username) {
 
 }
 
-std::string getfilename(std::string clientid = "current", bool getother=false) {
+std::string getfilename(std::string clientid = "current_cluster", bool getother=false) {
     std::string server_type = serverInfo.type();
     std::string s_id = "/1/";
     if (getother) 
       server_type = (server_type == "master") ? "slave"  : "master";
     std::string path = "cluster_" + std::to_string(serverInfo.clusterid())+ s_id;
-    if(clientid == "current") {
-      return path + "currentusers.txt";
+    if(clientid == "current_cluster") {
+      return path + "current_cluster_users.txt";
     }
     else if (clientid == "all") {
-      return path + "allusers.txt";
+      return path + "all_users.txt";
     } 
     return path + clientid;
 }
@@ -159,20 +159,20 @@ std::string getfilename(std::string clientid = "current", bool getother=false) {
 void copier(){
     std::vector<std::string> cusers;
     std::string tmp;
-    std::vector<std::string> fnames = {"current", "all"};
+    std::vector<std::string> fnames = {"current_cluster", "all"};
     for (auto s : fnames) {
       std::ifstream source(getfilename(s, true), std::ios::binary);
       std::ofstream dest(getfilename(s), std::ios::binary);
       dest << source.rdbuf();
       source.close(); dest.close();
     }
-    std::ifstream source(getfilename("current", true), std::ios::in);
+    std::ifstream source(getfilename("current_cluster", true), std::ios::in);
     while(getline(source, tmp)) {
       cusers.push_back(tmp);
       current_users.insert(tmp);
     }
     source.close();
-    fnames = {"_timeline.txt", "_follower.txt", "_following.txt", ".txt"};
+    fnames = {"_timeline.txt", "_followers.txt", "_follow_list.txt", ".txt"};
     for (auto s : cusers) {
       std::string base = getfilename(s,true);
       std::string dbase = getfilename(s);
@@ -229,7 +229,7 @@ class SNSServiceImpl final : public SNSService::Service {
         list_reply->add_all_users(user);
         }
         in.close();
-        in = std::ifstream(getfilename(request->username())+"_follower.txt");
+        in = std::ifstream(getfilename(request->username())+"_followers.txt");
         std::cout << "follower: \n";
         while(getline(in,user)) {
         std::cout << "\t" << user << "\n";
@@ -251,11 +251,11 @@ class SNSServiceImpl final : public SNSService::Service {
             if (user2 != nullptr) {
                 user1->client_following.push_back(user2);
                 user2->client_followers.push_back(user1);
-                std::ofstream flr(getfilename(user2->username)+"_follower.txt", std::ios::app);
+                std::ofstream flr(getfilename(user2->username)+"_followers.txt", std::ios::app);
                 flr << username1 << "\n";
                 flr.close();
             }
-            std::ofstream flw(getfilename(user1->username)+"_following.txt", std::ios::app);
+            std::ofstream flw(getfilename(user1->username)+"_follow_list.txt", std::ios::app);
             flw << username2 << "\n";
             flw.close();
             reply->set_msg("Follow Successful");
@@ -337,8 +337,8 @@ class SNSServiceImpl final : public SNSService::Service {
               std::cout << " prev current " << c << "\n";
           }
           c->stream = nullptr;
-          if(current_users.find(username) == current_users.end()) {
-              std::ofstream current(getfilename("current"),std::ios::app|std::ios::out|std::ios::in);
+            if(current_users.find(username) == current_users.end()) {
+              std::ofstream current(getfilename("current_cluster"),std::ios::app|std::ios::out|std::ios::in);
               current << username << "\n";
               current.close();
               current_users.insert(username);
@@ -413,9 +413,9 @@ class SNSServiceImpl final : public SNSService::Service {
         }
         continue;
       }
-      //Send the message to each follower's stream in current cluster
+      //Send the message to each follower's stream in current_cluster cluster
       std::vector<Client*>::const_iterator it;
-      std::ifstream infile(getfilename(c->username)+"_follower.txt");
+      std::ifstream infile(getfilename(c->username)+"_followers.txt");
       std::string follower;
       while (getline(infile, follower)) {
         Client * temp_client = getClient(follower);
@@ -500,7 +500,7 @@ void sendHeartbeat(std::string clusterId, std::string serverId, std::string host
 
 void updateTimelineStream() {
   while (true) {
-    std::vector<std::string> current_user_list = get_lines_from_file(getfilename("current"));
+    std::vector<std::string> current_user_list = get_lines_from_file(getfilename("current_cluster"));
     for (auto &c : current_user_list) {
       std::ifstream ifs((getfilename(c) + "_timeline.txt"), std::ios::in);
       std::string tmp;
@@ -570,7 +570,7 @@ void RunServer(std::string clusterId, std::string serverId, std::string coordina
         exit(0);
     }
 
-    std::vector<std::string> current = get_lines_from_file(getfilename("current"));
+    std::vector<std::string> current = get_lines_from_file(getfilename("current_cluster"));
     for (auto s : current) {
         current_users.insert(s);
     }

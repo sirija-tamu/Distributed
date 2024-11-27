@@ -112,18 +112,20 @@ int main() {
     // Simulate operations
     // Validate synchronization
     // Clients 1 and 2 retrieve messages in their timelines
+    wait(30);
     send_command_to_tmux("CLIENT1", "LIST");
     send_command_to_tmux("CLIENT1", "FOLLOW 2");
     // wait for Sync
-    wait(31);
+    wait(30);
     // post in timeline
+    send_command_to_tmux("CLIENT2", "LIST");
     send_command_to_tmux("CLIENT2", "TIMELINE");
     wait(1);
     send_command_to_tmux("CLIENT2", "p1");
     wait(1);
     // open timeline
     send_command_to_tmux("CLIENT1", "TIMELINE");
-    wait(31);
+    wait(30);
     std::cout << "Test case complete. Validate the output manually." << std::endl;
     wait(120);
     kill_tmux_session("COORDINATOR");
@@ -141,4 +143,3 @@ int main() {
     kill_tmux_session("CLIENT3");
     return 0;
 }
-
