@@ -71,9 +71,10 @@ using csce662::TLFL;
 int synchID = 1;
 int clusterID = 1;
 bool isMaster = false;
-int total_number_of_registered_synchronizers = 0; // update this by asking coordinator
+int total_number_of_registered_synchronizers = 3; // update this by asking coordinator
 std::string coordAddr;
 std::string clusterSubdirectory = "1";
+std::string name = "sirija";
 std::vector<std::string> otherHosts;
 std::unordered_map<std::string, int> timelineLengths;
 
@@ -145,14 +146,15 @@ public:
     SynchronizerRabbitMQ(const std::string &host, int p, int id) : hostname(host), port(p), channel(1), synchID(id)
     {
         setupRabbitMQ();
-        declareQueue("synch" + std::to_string(synchID) + "_users_queue");
-        declareQueue("synch" + std::to_string(synchID) + "_clients_relations_queue");
-        declareQueue("synch" + std::to_string(synchID) + "_timeline_queue");
+        declareQueue("synch" + name + std::to_string(synchID) + "_users_queue");
+        declareQueue("synch" + name + std::to_string(synchID) + "_clients_relations_queue");
+        declareQueue("synch" + name + std::to_string(synchID) + "_timeline_queue");
         // TODO: add or modify what kind of queues exist in your clusters based on your needs
     }
 
     void publishUserList()
     {
+        std::cout<< "hey" << "/n";
         std::vector<std::string> users = get_all_users_func(synchID);
         std::sort(users.begin(), users.end());
         Json::Value userList;
@@ -162,7 +164,8 @@ public:
         }
         Json::FastWriter writer;
         std::string message = writer.write(userList);
-        publishMessage("synch" + std::to_string(synchID) + "_users_queue", message);
+        publishMessage("synch" + name + std::to_string(synchID) + "_users_queue", message);
+        std::cout<< message << "/n";
     }
 
     void consumeUserLists()
@@ -176,10 +179,11 @@ public:
         if (total_number_of_registered_synchronizers > 0) {
           for (int i = 1; i <= total_number_of_registered_synchronizers; i++)
           {
-              std::string queueName = "synch" + std::to_string(i) + "_users_queue";
+              std::string queueName = "synch" + name + std::to_string(i) + "_users_queue";
               std::string message = consumeMessage(queueName, 1000); // 1 second timeout
               if (!message.empty())
               {
+                  std::cout<< message << "/n";
                   Json::Value root;
                   Json::Reader reader;
                   if (reader.parse(message, root))
@@ -219,7 +223,7 @@ public:
 
         Json::FastWriter writer;
         std::string message = writer.write(relations);
-        publishMessage("synch" + std::to_string(synchID) + "_clients_relations_queue", message);
+        publishMessage("synch" + name + std::to_string(synchID) + "_clients_relations_queue", message);
     }
 
     void consumeClientRelations()
@@ -236,7 +240,7 @@ public:
           for (int i = 1; i <= total_number_of_registered_synchronizers; i++)
           {
               // Consume Follow List
-              std::string queueName = "synch" + std::to_string(i) + "_clients_relations_queue";
+              std::string queueName = "synch" + name + std::to_string(i) + "_clients_relations_queue";
               std::string message = consumeMessage(queueName, 1000); // 1 second timeout
 
               if (!message.empty())
@@ -311,12 +315,12 @@ public:
             for (const auto& post : userPosts) {
                 postArray.append(post);
             }
-            posts[std::to_string(clientId)] = postArray;
+            posts[std::to_string(clientId)+"tl"] = postArray;
         }
     
         Json::FastWriter writer;
         std::string message = writer.write(posts);
-        publishMessage("synch" + std::to_string(synchID) + "_timeline_queue", message);
+        publishMessage("synch" + name + std::to_string(synchID) + "_timeline_queue", message);
     }
 
     // For each client in your cluster, consume messages from your timeline queue and modify your client's timeline files based on what the users they follow posted to their timeline
@@ -326,7 +330,7 @@ public:
         if (total_number_of_registered_synchronizers > 0) {
           for (int i = 1; i <= total_number_of_registered_synchronizers; i++)
           {
-              std::string queueName = "synch" + std::to_string(i) + "_timeline_queue";
+              std::string queueName = "synch" + name + std::to_string(i) + "_timeline_queue";
               std::string message = consumeMessage(queueName, 1000); // 1 second timeout
               if (!message.empty())
               {
@@ -336,10 +340,11 @@ public:
                   {
                       for (const auto& user : cluster_users) {
                         // Check if the client has posts in the message
-                        if (root.isMember(user)) {
+                        if (root.isMember(user+"tl")) {
                             // Open the timeline file only once per client
                             std::string timelineFile = "cluster_" + std::to_string(clusterID) + "/" + clusterSubdirectory + "/" + user + "_timeline.txt";
                             std::string semName = "/" + std::to_string(clusterID) + "_" + clusterSubdirectory + "_" + user + "_timeline.txt";
+                            sem_t *fileSem = sem_open(semName.c_str(), O_CREAT);
                             std::ofstream timelineStream(timelineFile, std::ios::app | std::ios::out | std::ios::in);
                             // Process each post in the client's timeline
                             for (const auto& line : root[user]) {
@@ -349,6 +354,7 @@ public:
                                 }
                             }
                             // Close the file after processing the client
+                            sem_close(fileSem);
                             timelineStream.close();
                           }
                       }
@@ -497,7 +503,7 @@ void run_synchronizer(std::string coordIP, std::string coordPort, std::string po
 
         // making a request to the coordinator to see count of follower synchronizers
         coord_stub_->GetAllFollowerServers(&context, id, &followerServers);
-        total_number_of_registered_synchronizers = followerServers.serverid_size();
+        //total_number_of_registered_synchronizers = followerServers.serverid_size();
 
         std::vector<int> server_ids;
         std::vector<std::string> hosts, ports;
