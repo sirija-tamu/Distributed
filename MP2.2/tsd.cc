@@ -517,24 +517,26 @@ void updateTimelineStream() {
       std::vector<std::string> msg = {};
       if (user_timeline.find(c) == user_timeline.end())
         user_timeline[c] = {};
-      for (int i = 0; i < tl.size(); i+=2) {
+      for (int i = 0; i < tl.size(); i+=1) {
         std::string msg = tl[i];
-        std::string name = msg.substr(0, 1);
-        if ((find(user_timeline[c].begin(), user_timeline[c].end(), msg) == user_timeline[c].end()) &&
-            find(current_user_list.begin(), current_user_list.end(), name) == current_user_list.end()
-            ) {
-                    user_timeline[c].push_back(tl[i]);
-          Client* tmp = getClient(c);
-          if (tmp != nullptr) {
-            if(tmp->connected && tmp->stream) {
-              try {
-                Message new_msg;
-                new_msg.set_msg(msg);
-                ServerReaderWriter<Message, Message>* tt = tmp->stream;
-                std::cout<<"new_msg\n";
-                tmp->stream->Write(new_msg);
-              } catch(...) {
-                std::cout << "Error in Write\n";
+        if(!msg.empty() && msg.size() > 2){
+          std::string name = msg.substr(0, 1);
+          if ((find(user_timeline[c].begin(), user_timeline[c].end(), msg) == user_timeline[c].end()) &&
+              find(current_user_list.begin(), current_user_list.end(), name) == current_user_list.end()
+              ) {
+                      user_timeline[c].push_back(tl[i]);
+            Client* tmp = getClient(c);
+            if (tmp != nullptr) {
+              if(tmp->connected && tmp->stream) {
+                try {
+                  Message new_msg;
+                  new_msg.set_msg(msg);
+                  ServerReaderWriter<Message, Message>* tt = tmp->stream;
+                  std::cout<<"new_msg\n";
+                  tmp->stream->Write(new_msg);
+                } catch(...) {
+                  std::cout << "Error in Write\n";
+                }
               }
             }
           }
