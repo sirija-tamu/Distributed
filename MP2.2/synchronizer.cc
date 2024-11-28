@@ -74,7 +74,7 @@ bool isMaster = false;
 int total_number_of_registered_synchronizers = 3; // update this by asking coordinator
 std::string coordAddr;
 std::string clusterSubdirectory = "1";
-std::string name = "b";
+std::string name = "ba";
 std::vector<std::string> otherHosts;
 std::unordered_map<std::string, int> timelineLengths;
 

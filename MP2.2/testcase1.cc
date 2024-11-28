@@ -125,7 +125,7 @@ int main() {
     wait(1);
     // open timeline
     send_command_to_tmux("CLIENT1", "TIMELINE");
-    wait(500);
+    wait(300);
     /*kill_tmux_session("COORDINATOR");
     kill_tmux_session("MASTER1");
     kill_tmux_session("SLAVE1");
