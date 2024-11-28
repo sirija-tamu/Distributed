@@ -141,12 +141,10 @@ bool isincurrent(std::string username) {
 
 }
 
-std::string getfilename(std::string clientid = "current_cluster", bool getother=false) {
-    std::string server_type = serverInfo.type();
-    std::string s_id = "/1/";
-    if (getother) 
-      server_type = (server_type == "master") ? "slave"  : "master";
-    std::string path = "cluster_" + std::to_string(serverInfo.clusterid())+ s_id;
+std::string getfilename(std::string clientid = "current_cluster") {
+    std::string folder = serverInfo.clusterdirectory();
+
+    std::string path = "cluster_" + std::to_string(serverInfo.clusterid())+ "/" + folder +  "/";
     if(clientid == "current_cluster") {
       return path + "current_cluster_users.txt";
     }
@@ -156,17 +154,33 @@ std::string getfilename(std::string clientid = "current_cluster", bool getother=
     return path + clientid;
 }
 
+std::string getprimaryfilename(std::string clientid = "current_cluster", bool primary=false) {
+    std::string folder = "2";
+    if(primary){
+      std::string folder = "1";
+    }
+    std::string path = "cluster_" + std::to_string(serverInfo.clusterid())+ "/" + folder +  "/";
+    if(clientid == "current_cluster") {
+      return path + "current_cluster_users.txt";
+    }
+    else if (clientid == "all") {
+      return path + "all_users.txt";
+    } 
+    return path + clientid;
+}
+
+
 void copier(){
     std::vector<std::string> cusers;
     std::string tmp;
     std::vector<std::string> fnames = {"current_cluster", "all"};
     for (auto s : fnames) {
-      std::ifstream source(getfilename(s, true), std::ios::binary);
-      std::ofstream dest(getfilename(s), std::ios::binary);
+      std::ifstream source(getprimaryfilename(s, true), std::ios::binary);
+      std::ofstream dest(getprimaryfilename(s, false), std::ios::binary);
       dest << source.rdbuf();
       source.close(); dest.close();
     }
-    std::ifstream source(getfilename("current_cluster", true), std::ios::in);
+    std::ifstream source(getprimaryfilename("current_cluster", true), std::ios::in);
     while(getline(source, tmp)) {
       cusers.push_back(tmp);
       current_users.insert(tmp);
@@ -174,8 +188,8 @@ void copier(){
     source.close();
     fnames = {"_timeline.txt", "_followers.txt", "_follow_list.txt", ".txt"};
     for (auto s : cusers) {
-      std::string base = getfilename(s,true);
-      std::string dbase = getfilename(s);
+      std::string base = getprimaryfilename(s,true);
+      std::string dbase = getprimaryfilename(s, false);
       for (auto fn : fnames) {
         std::ifstream source (base  + fn,  std::ios::binary);
         std::ofstream dest   (dbase + fn,  std::ios::binary);
@@ -474,10 +488,11 @@ IReply Heartbeat(std::string clusterId, std::string serverId, std::string hostna
     grpc::Status status = coordinator_stub_->Heartbeat(&context, serverinfo, &confirmation);
     if (status.ok()){
         ire.grpc_status = status;
-        if (serverInfo.type() == "slave" && confirmation.type() == "master") {
-            copier();
-        }
         serverInfo.set_type(confirmation.type());
+          if (!isHeartbeat){
+              serverInfo.set_type(confirmation.clusterdirectory());
+              std::cout << "Set the clusterdirectory"<<confirmation.clusterdirectory()<<"\n";
+          }
         log(INFO, "Got confirmation from cooridinator  now type=" + confirmation.type());
     }else { // professor said in class that since the servers cannot be run without a coordinator, you should exit
 
@@ -492,9 +507,12 @@ IReply Heartbeat(std::string clusterId, std::string serverId, std::string hostna
 void sendHeartbeat(std::string clusterId, std::string serverId, std::string hostname, std::string port) {
     while (true){
 
+        copier();
+
         sleep(3);
 
         IReply reply = Heartbeat(clusterId, serverId, "localhost", port, true);
+
         if (!reply.grpc_status.ok()){
                         exit(1);
         }

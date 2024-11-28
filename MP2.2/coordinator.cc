@@ -142,7 +142,6 @@ class CoordServiceImpl final : public CoordService::Service {
                         clusters[intClusterid-1][1] = clusters[intClusterid-1][0]; // Move old master to slave
                         clusters[intClusterid-1][0] = curZ;
                         std::cout << "Slave replaced Master for cluster"<< intClusterid <<"/n";
-                        // TODO -  update the syncServers.
                 }
 
                 v_mutex.unlock();
@@ -184,16 +183,22 @@ class CoordServiceImpl final : public CoordService::Service {
                     // If it's the first server in the cluster, make it master
                     if(clusters[intClusterid-1].size() == 0) {
                         z->type = "master";
+                        z->clusterdirectory = "1"
+                        confirmation->clusterdirectory = "1";
                         clusters[intClusterid-1].push_back(z);
                         std::cout << "Master registered for cluster"<< intClusterid <<"\n";
                     } else {
                         // If master is down, make it master
                         if (clusters[intClusterid-1][0]->type == "down") {
                             z->type = "master";
+                            z->clusterdirectory = "2";
+                            confirmation->clusterdirectory = "2";
                             clusters[intClusterid-1][0] = z; // Update master
                             std::cout << "Slave replaced Master for cluster"<< intClusterid <<"\n";
                         } else {
                             z->type = "slave";
+                            z->clusterdirectory = "2";
+                            confirmation->clusterdirectory = "2";
                             clusters[intClusterid-1].push_back(z); // Add new node as slave
                             std::cout << "Slave registered for cluster"<< intClusterid <<"\n";
                         }

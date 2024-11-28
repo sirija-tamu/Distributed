@@ -33,6 +33,7 @@ message ServerInfo{
     string type = 4;
     int32 clusterID = 5;
     bool isMaster = 6;
+    string clusterDirectory = 7;
 }
 // TODO: check which extra stuff in the coordinator.proto you dont need
 
@@ -40,6 +41,7 @@ message ServerInfo{
 message Confirmation{
     bool status = 1;
     string type = 2;
+    string clusterDirectory = 3;
 }
 
 //id message definition
