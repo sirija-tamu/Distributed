@@ -33,7 +33,7 @@ GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
 PROTOS_PATH = .
 
 
-all: system-check tsc tsd coordinator synchronizer test2
+all: system-check tsc tsd coordinator synchronizer test1 test2
 
 tsc: client.o coordinator.pb.o coordinator.grpc.pb.o sns.pb.o sns.grpc.pb.o tsc.o
 	$(CXX) $^ $(LDFLAGS) -g -o $@
@@ -48,6 +48,9 @@ synchronizer: coordinator.pb.o coordinator.grpc.pb.o sns.pb.o sns.grpc.pb.o sync
 	$(CXX) $^ $(LDFLAGS) -g -o $@
 
 # Targets for test1, test2, and test3
+test1: testcase1.cc
+	$(CXX) -o test1 testcase1.cc
+	
 test2: testcase2.cc
 	$(CXX) -o test2 testcase2.cc
 
@@ -60,7 +63,7 @@ test2: testcase2.cc
 	$(PROTOC) -I $(PROTOS_PATH) --cpp_out=. $<
 
 clean:
-	rm -f *.txt *.o *.pb.cc *.pb.h tsc tsd coordinator synchronizer test2
+	rm -f *.txt *.o *.pb.cc *.pb.h tsc tsd coordinator synchronizer test1 test2
 	rm -rf cluster_*/
 
 

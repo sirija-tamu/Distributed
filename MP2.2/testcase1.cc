@@ -114,30 +114,7 @@ int main() {
     // Clients 1 and 2 retrieve messages in their timelines
     wait(60);
     send_command_to_tmux("CLIENT1", "LIST");
-    send_command_to_tmux("CLIENT1", "FOLLOW 2");
-    // wait for Sync
-    wait(60);
-    // post in timeline
     send_command_to_tmux("CLIENT2", "LIST");
-    send_command_to_tmux("CLIENT2", "TIMELINE");
-    wait(1);
-    send_command_to_tmux("CLIENT2", "p1");
-    wait(1);
-    // open timeline
-    send_command_to_tmux("CLIENT1", "TIMELINE");
-    wait(300);
-    /*kill_tmux_session("COORDINATOR");
-    kill_tmux_session("MASTER1");
-    kill_tmux_session("SLAVE1");
-    kill_tmux_session("MASTER2");
-    kill_tmux_session("SLAVE2");
-    kill_tmux_session("MASTER3");
-    kill_tmux_session("SLAVE3");
-    kill_tmux_session("SYNC1");
-    kill_tmux_session("SYNC2");
-    kill_tmux_session("SYNC3");
-    //kill_tmux_session("CLIENT1");
-    //kill_tmux_session("CLIENT2");
-    kill_tmux_session("CLIENT3");*/
+    
     return 0;
 }

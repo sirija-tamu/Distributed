@@ -45,6 +45,7 @@ struct zNode{
     std::string hostname;
     std::string port;
     std::string type;
+    std::string clusterdirectory;
     std::time_t last_heartbeat;
     bool missed_heartbeat;
     bool isActive();
@@ -139,6 +140,7 @@ class CoordServiceImpl final : public CoordService::Service {
                 // Master is down, Slave is now master
                 if (curZ->type == "slave" && clusters[intClusterid-1][0]->type == "down") {
                         curZ->type = "master";
+                        confirmation->set_type("master");
                         clusters[intClusterid-1][1] = clusters[intClusterid-1][0]; // Move old master to slave
                         clusters[intClusterid-1][0] = curZ;
                         std::cout << "Slave replaced Master for cluster"<< intClusterid <<"/n";
@@ -183,8 +185,9 @@ class CoordServiceImpl final : public CoordService::Service {
                     // If it's the first server in the cluster, make it master
                     if(clusters[intClusterid-1].size() == 0) {
                         z->type = "master";
-                        z->clusterdirectory = "1"
-                        confirmation->clusterdirectory = "1";
+                        z->clusterdirectory = "1";
+                        confirmation->set_type("master");
+                        confirmation->set_clusterdirectory("1");
                         clusters[intClusterid-1].push_back(z);
                         std::cout << "Master registered for cluster"<< intClusterid <<"\n";
                     } else {
@@ -192,13 +195,15 @@ class CoordServiceImpl final : public CoordService::Service {
                         if (clusters[intClusterid-1][0]->type == "down") {
                             z->type = "master";
                             z->clusterdirectory = "2";
-                            confirmation->clusterdirectory = "2";
+                            confirmation->set_type("master");
+                            confirmation->set_clusterdirectory("2");
                             clusters[intClusterid-1][0] = z; // Update master
                             std::cout << "Slave replaced Master for cluster"<< intClusterid <<"\n";
                         } else {
                             z->type = "slave";
+                            confirmation->set_type("slave");
                             z->clusterdirectory = "2";
-                            confirmation->clusterdirectory = "2";
+                            confirmation->set_clusterdirectory("2");
                             clusters[intClusterid-1].push_back(z); // Add new node as slave
                             std::cout << "Slave registered for cluster"<< intClusterid <<"\n";
                         }
@@ -233,7 +238,21 @@ class CoordServiceImpl final : public CoordService::Service {
         // If server is active, return serverinfo
 
         // finding a server to assign to the new client
-        int curIndex = findServer(clusters[clusterId-1], clusterId);
+        int curIndex = -1;
+        
+        // this function returns the index of the required server in its cluster array
+        v_mutex.lock();
+        
+        for (size_t i = 0; i < clusters[clusterId-1].size(); ++i) {
+            if (clusters[clusterId-1][i]->isActive() && clusters[clusterId-1][i]->type == "master") {
+                v_mutex.unlock();
+                curIndex = i;
+                break;
+            }
+        }
+        v_mutex.unlock();
+
+    // at this point no appropriate server was found
 
         if (curIndex != -1){
             v_mutex.lock();
@@ -268,6 +287,8 @@ class CoordServiceImpl final : public CoordService::Service {
             serverList->add_port(sync.port());          // Add port
             serverList->add_serverid(sync.serverid());  // Add server ID
         }
+        int clusterId = ((id->id() - 1) % 3) + 1;
+        serverList->set_clusterdirectory(std::to_string(clusterId));
         return Status::OK;
     }
 

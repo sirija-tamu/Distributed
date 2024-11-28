@@ -143,7 +143,6 @@ bool isincurrent(std::string username) {
 
 std::string getfilename(std::string clientid = "current_cluster") {
     std::string folder = serverInfo.clusterdirectory();
-
     std::string path = "cluster_" + std::to_string(serverInfo.clusterid())+ "/" + folder +  "/";
     if(clientid == "current_cluster") {
       return path + "current_cluster_users.txt";
@@ -490,9 +489,13 @@ IReply Heartbeat(std::string clusterId, std::string serverId, std::string hostna
         ire.grpc_status = status;
         serverInfo.set_type(confirmation.type());
           if (!isHeartbeat){
-              serverInfo.set_type(confirmation.clusterdirectory());
+              serverInfo.set_clusterdirectory(confirmation.clusterdirectory());
               std::cout << "Set the clusterdirectory"<<confirmation.clusterdirectory()<<"\n";
           }
+        if (confirmation.type() == "master" && serverInfo.clusterdirectory() == "2") {
+            copier();
+            std::cout << "Master Server is down, wait for copying\n";
+        }
         log(INFO, "Got confirmation from cooridinator  now type=" + confirmation.type());
     }else { // professor said in class that since the servers cannot be run without a coordinator, you should exit
 
@@ -506,8 +509,6 @@ IReply Heartbeat(std::string clusterId, std::string serverId, std::string hostna
 // function that runs inside a detached thread that calls the heartbeat function
 void sendHeartbeat(std::string clusterId, std::string serverId, std::string hostname, std::string port) {
     while (true){
-
-        copier();
 
         sleep(3);
 

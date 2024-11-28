@@ -78,6 +78,7 @@ message ServerList{
     repeated string hostname = 2;
     repeated string port = 3;
     repeated string type = 4;
+    string clusterDirectory = 5;
 }
 
 

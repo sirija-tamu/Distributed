@@ -499,6 +499,7 @@ void run_synchronizer(std::string coordIP, std::string coordPort, std::string po
         // making a request to the coordinator to see count of follower synchronizers
         coord_stub_->GetAllFollowerServers(&context, id, &followerServers);
         total_number_of_registered_synchronizers = followerServers.serverid_size();
+        clusterSubdirectory = followerServers.clusterdirectory();
         sleep(5);
         std::vector<int> server_ids;
         std::vector<std::string> hosts, ports;
