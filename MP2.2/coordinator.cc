@@ -288,11 +288,9 @@ class CoordServiceImpl final : public CoordService::Service {
             serverList->add_serverid(sync.serverid());  // Add server ID
         }
         int clusterId = ((id->id() - 1) % 3) + 1;
-        serverList->set_clusterdirectory(std::to_string(clusterId));
+        serverList->set_clusterdirectory(clusters[clusterId-1][0]->clusterdirectory);
         return Status::OK;
     }
-
-
 };
 
 void RunServer(std::string port_no){

@@ -74,7 +74,7 @@ bool isMaster = false;
 int total_number_of_registered_synchronizers = 3; // update this by asking coordinator
 std::string coordAddr;
 std::string clusterSubdirectory = "1";
-std::string name = "ba";
+std::string name = std::to_string(rand());
 std::vector<std::string> otherHosts;
 std::unordered_map<std::string, int> timelineLengths;
 
@@ -151,7 +151,7 @@ public:
         declareQueue("synch" + name + std::to_string(synchID) + "_timeline_queue");
         // TODO: add or modify what kind of queues exist in your clusters based on your needs
     }
-
+    
     void publishUserList()
     {
         std::vector<std::string> users = get_all_users_func(synchID);
@@ -200,7 +200,7 @@ public:
     {
         Json::Value relations;
         std::vector<std::string> cluster_users = get_all_users_func(synchID, false);
- 
+        
         for (const auto &client : cluster_users)
         {
             int clientId = std::stoi(client);

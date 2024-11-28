@@ -337,6 +337,35 @@ class SNSServiceImpl final : public SNSService::Service {
         return Status::OK;
     }
 
+    void writeIntoFile(const std::string& filename, const std::string& username) {
+      // Open the file in read mode to check if the username exists
+      std::ifstream fileRead(filename);
+      std::string line;
+      bool found = false;
+
+      if (fileRead.is_open()) {
+          while (std::getline(fileRead, line)) {
+              if (line == username) {
+                  found = true;
+                  break;
+              }
+          }
+          fileRead.close();
+      }
+
+      // If username is not found, append it to the file
+      if (!found) {
+          std::ofstream fileWrite(filename, std::ios::app);
+          if (fileWrite.is_open()) {
+              fileWrite << username << "\n";
+              fileWrite.close();
+          } else {
+              std::cerr << "Error: Unable to open file for writing.\n";
+          }
+      } else {
+          std::cout << "Username already exists in the file.\n";
+      }
+  }
     // RPC Login
     Status Login(ServerContext* context, const Request* request, Reply* reply) override {
         std::cout<<"Serving Login Request: "<< request->username() << "\n";
@@ -355,13 +384,9 @@ class SNSServiceImpl final : public SNSService::Service {
           c->missed_heartbeat = false;
           c->last_heartbeat = getTimeNow();
             if(current_users.find(username) == current_users.end()) {
-              std::ofstream current(getfilename("current_cluster"),std::ios::app|std::ios::out|std::ios::in);
-              current << username << "\n";
-              current.close();
+              writeIntoFile(getfilename("current_cluster"), username);
+              writeIntoFile(getfilename("all"), username);
               current_users.insert(username);
-              std::ofstream all(getfilename("all"),std::ios::app|std::ios::out|std::ios::in);
-              all << username << "\n";
-              all.close();
           }
         } else {
           std::cout << " User found in getClient " << c << "\n";
@@ -494,7 +519,7 @@ IReply Heartbeat(std::string clusterId, std::string serverId, std::string hostna
           }
         if (confirmation.type() == "master" && serverInfo.clusterdirectory() == "2") {
             copier();
-            std::cout << "Master Server is down, wait for copying\n";
+            std::cout << "Master Server is down, Copying files to Slave \n";
         }
         log(INFO, "Got confirmation from cooridinator  now type=" + confirmation.type());
     }else { // professor said in class that since the servers cannot be run without a coordinator, you should exit
