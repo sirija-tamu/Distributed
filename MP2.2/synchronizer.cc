@@ -74,7 +74,7 @@ bool isMaster = false;
 int total_number_of_registered_synchronizers = 3; // update this by asking coordinator
 std::string coordAddr;
 std::string clusterSubdirectory = "1";
-std::string name = "sirija";
+std::string name = "b";
 std::vector<std::string> otherHosts;
 std::unordered_map<std::string, int> timelineLengths;
 
@@ -154,7 +154,6 @@ public:
 
     void publishUserList()
     {
-        std::cout<< "hey" << "/n";
         std::vector<std::string> users = get_all_users_func(synchID);
         std::sort(users.begin(), users.end());
         Json::Value userList;
@@ -165,7 +164,6 @@ public:
         Json::FastWriter writer;
         std::string message = writer.write(userList);
         publishMessage("synch" + name + std::to_string(synchID) + "_users_queue", message);
-        std::cout<< message << "/n";
     }
 
     void consumeUserLists()
@@ -183,7 +181,6 @@ public:
               std::string message = consumeMessage(queueName, 1000); // 1 second timeout
               if (!message.empty())
               {
-                  std::cout<< message << "/n";
                   Json::Value root;
                   Json::Reader reader;
                   if (reader.parse(message, root))
@@ -494,8 +491,6 @@ void run_synchronizer(std::string coordIP, std::string coordPort, std::string po
     while (true)
     {
         // the synchronizers sync files every 5 seconds
-        sleep(5);
-
         grpc::ClientContext context;
         ServerList followerServers;
         ID id;
@@ -503,8 +498,8 @@ void run_synchronizer(std::string coordIP, std::string coordPort, std::string po
 
         // making a request to the coordinator to see count of follower synchronizers
         coord_stub_->GetAllFollowerServers(&context, id, &followerServers);
-        //total_number_of_registered_synchronizers = followerServers.serverid_size();
-
+        total_number_of_registered_synchronizers = followerServers.serverid_size();
+        sleep(5);
         std::vector<int> server_ids;
         std::vector<std::string> hosts, ports;
         for (std::string host : followerServers.hostname())
