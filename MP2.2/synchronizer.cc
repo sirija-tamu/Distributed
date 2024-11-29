@@ -74,7 +74,7 @@ bool isMaster = false;
 int total_number_of_registered_synchronizers = 3; // update this by asking coordinator
 std::string coordAddr;
 std::string clusterSubdirectory = "1";
-std::string name = std::to_string(rand());
+std::string name = "Finalist";
 std::vector<std::string> otherHosts;
 std::unordered_map<std::string, int> timelineLengths;
 
@@ -344,7 +344,7 @@ public:
                             sem_t *fileSem = sem_open(semName.c_str(), O_CREAT);
                             std::ofstream timelineStream(timelineFile, std::ios::app | std::ios::out | std::ios::in);
                             // Process each post in the client's timeline
-                            for (const auto& line : root[user]) {
+                            for (const auto& line : root[user+"tl"]) {
                                 // If the post doesn't already exist in the file, write it
                                 if (!file_contains_user(timelineFile, line.asString())) {
                                     timelineStream << line.asString() << std::endl;
